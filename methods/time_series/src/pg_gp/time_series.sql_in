@@ -306,14 +306,14 @@ CREATE FUNCTION MADLIB_SCHEMA.at_time_finalfunc(MADLIB_SCHEMA.at_time_type) RETU
 AS 'MODULE_PATHNAME', 'at_time_finalfunc'
 LANGUAGE C IMMUTABLE;
 
-CREATE AGGREGATE MADLIB_SCHEMA.time_intercept(FLOAT8, BIGINT, BOOL) (
+CREATE AGGREGATE MADLIB_SCHEMA.at_time(FLOAT8, BIGINT, BOOL) (
        SFUNC = MADLIB_SCHEMA.at_time_sfunc,
        PREFUNC = MADLIB_SCHEMA.at_time_prefunc,
        FINALFUNC = MADLIB_SCHEMA.at_time_finalfunc,
        STYPE = MADLIB_SCHEMA.at_time_type
 );
 
-CREATE AGGREGATE MADLIB_SCHEMA.time_intercept(FLOAT8, BIGINT, FLOAT8) (
+CREATE AGGREGATE MADLIB_SCHEMA.at_time(FLOAT8, BIGINT, FLOAT8) (
        SFUNC = MADLIB_SCHEMA.at_time_sfunc,
        PREFUNC = MADLIB_SCHEMA.at_time_prefunc,
        FINALFUNC = MADLIB_SCHEMA.at_time_finalfunc,
@@ -503,7 +503,7 @@ CREATE AGGREGATE MADLIB_SCHEMA.event_detection_oid(FLOAT8, INT4, FLOAT8[]) (
        SFUNC = MADLIB_SCHEMA.event_detection_sfunc,
        PREFUNC = MADLIB_SCHEMA.event_detection_prefunc,
        FINALFUNC = MADLIB_SCHEMA.event_detection_passOID_finalfunc,
-       STYPE = event_detection_type
+       STYPE = MADLIB_SCHEMA.event_detection_type
 );
 
 CREATE AGGREGATE MADLIB_SCHEMA.event_detection_pearson(FLOAT8, FLOAT8[]) (
