@@ -1,0 +1,522 @@
+/* ----------------------------------------------------------------------- *//** 
+ *
+ * @file time_series.sql_in
+ *
+ * @brief implementation of time series functions in SQL
+ * @date   August 2011
+ *
+ *
+ *//* ----------------------------------------------------------------------- */
+
+/**
+@addtogroup grp_timeseries
+
+
+@about
+
+This module provide a set of basic time sereis operations primarily used in financial sector. 
+
+@implementation
+
+-# At present these functions support several numeric types:
+    - SHORTINT
+    - INT
+    - BIGINT
+    - REAL
+    - FLOAT
+As of now they do not support variable size NUMERIC input. 
+-# Also several of them may require NO NULL VALUES, while others omit NULLs and 
+return results.
+
+@sa File array_ops.sql_in for list of functions and usage.
+*/
+
+/*
+	Part of series normalization library. The following set of function takes as an input a timesereis data and returns this data normalized.
+*/
+
+CREATE TYPE MADLIB_SCHEMA.series_type AS(
+	time_stamp TIMESTAMP[],
+	value FLOAT8[]
+);
+
+CREATE TYPE MADLIB_SCHEMA.series_return_type AS(
+	time_stamp TIMESTAMP,
+	value FLOAT8
+);
+
+-- just normalize series
+
+CREATE OR REPLACE FUNCTION MADLIB_SCHEMA.unstruct(series_type) RETURNS SETOF MADLIB_SCHEMA.series_return_type AS
+'MODULE_PATHNAME', 'unstruct_series'
+LANGUAGE C IMMUTABLE STRICT;
+
+CREATE FUNCTION MADLIB_SCHEMA.uniform_series_sfunc(FLOAT8[], TIMESTAMP, FLOAT8, INTERVAL) RETURNS FLOAT8[] 
+AS 'MODULE_PATHNAME', 'uniform_series_sfunc'
+LANGUAGE C IMMUTABLE;
+
+CREATE FUNCTION MADLIB_SCHEMA.uniform_series_start_sfunc(FLOAT8[], TIMESTAMP, FLOAT8, INTERVAL, TIMESTAMP) RETURNS FLOAT8[] 
+AS 'MODULE_PATHNAME', 'uniform_series_start_sfunc'
+LANGUAGE C IMMUTABLE;
+
+CREATE FUNCTION MADLIB_SCHEMA.uniform_series_prefunc(FLOAT8[], FLOAT8[]) RETURNS FLOAT8[] 
+AS 'MODULE_PATHNAME', 'uniform_series_prefunc'
+LANGUAGE C IMMUTABLE;
+
+CREATE FUNCTION MADLIB_SCHEMA.uniform_series_finalfunc(FLOAT8[]) RETURNS MADLIB_SCHEMA.series_type 
+AS 'MODULE_PATHNAME', 'uniform_series_finalfunc'
+LANGUAGE C IMMUTABLE; 
+
+CREATE FUNCTION MADLIB_SCHEMA.uniform_series_const_finalfunc(FLOAT8[]) RETURNS MADLIB_SCHEMA.series_type 
+AS 'MODULE_PATHNAME', 'uniform_series_const_finalfunc'
+LANGUAGE C IMMUTABLE; 
+
+CREATE FUNCTION MADLIB_SCHEMA.uniform_series_include_original_finalfunc(FLOAT8[]) RETURNS MADLIB_SCHEMA.series_type 
+AS 'MODULE_PATHNAME', 'uniform_series_include_original_finalfunc'
+LANGUAGE C IMMUTABLE; 
+
+CREATE FUNCTION MADLIB_SCHEMA.uniform_series_const_include_original_finalfunc(FLOAT8[]) RETURNS MADLIB_SCHEMA.series_type 
+AS 'MODULE_PATHNAME', 'uniform_series_const_include_original_finalfunc'
+LANGUAGE C IMMUTABLE;
+
+CREATE FUNCTION MADLIB_SCHEMA.gapfilled_series_sfunc(FLOAT8[], TIMESTAMP, FLOAT8, INTERVAL) RETURNS FLOAT8[] 
+AS 'MODULE_PATHNAME', 'gapfilled_series_sfunc'
+LANGUAGE C IMMUTABLE;
+
+CREATE FUNCTION MADLIB_SCHEMA.gapfilled_series_start_sfunc(FLOAT8[], TIMESTAMP, FLOAT8, INTERVAL, TIMESTAMP) RETURNS FLOAT8[] 
+AS 'MODULE_PATHNAME', 'gapfilled_series_start_sfunc'
+LANGUAGE C IMMUTABLE;
+
+CREATE FUNCTION MADLIB_SCHEMA.gapfilled_series_prefunc(FLOAT8[], FLOAT8[]) RETURNS FLOAT8[] 
+AS 'MODULE_PATHNAME', 'gapfilled_series_prefunc'
+LANGUAGE C IMMUTABLE;
+
+CREATE FUNCTION MADLIB_SCHEMA.gapfilled_series_finalfunc(FLOAT8[]) RETURNS MADLIB_SCHEMA.series_type 
+AS 'MODULE_PATHNAME', 'gapfilled_series_finalfunc'
+LANGUAGE C IMMUTABLE;
+
+CREATE FUNCTION MADLIB_SCHEMA.gapfilled_series_const_finalfunc(FLOAT8[]) RETURNS MADLIB_SCHEMA.series_type 
+AS 'MODULE_PATHNAME', 'gapfilled_series_finalfunc'
+LANGUAGE C IMMUTABLE; 
+
+CREATE AGGREGATE MADLIB_SCHEMA.normalilze_series_avg(TIMESTAMP, FLOAT8, INTERVAL) (
+       SFUNC = MADLIB_SCHEMA.uniform_series_sfunc,
+       PREFUNC = MADLIB_SCHEMA.uniform_series_prefunc,
+       FINALFUNC = MADLIB_SCHEMA.uniform_series_finalfunc,
+       STYPE = FLOAT8[],
+       initcond = '{0,0}'
+);
+
+CREATE AGGREGATE MADLIB_SCHEMA.normalilze_series_avg(TIMESTAMP, FLOAT8, INTERVAL, TIMESTAMP) (
+       SFUNC = MADLIB_SCHEMA.uniform_series_start_sfunc,
+       PREFUNC = MADLIB_SCHEMA.uniform_series_prefunc,
+       FINALFUNC = MADLIB_SCHEMA.uniform_series_finalfunc,
+       STYPE = FLOAT8[],
+       initcond = '{0,0}'
+);
+
+CREATE AGGREGATE  MADLIB_SCHEMA.normalilze_series_const(TIMESTAMP, FLOAT8, INTERVAL) (
+       SFUNC = MADLIB_SCHEMA.uniform_series_sfunc,
+       PREFUNC = MADLIB_SCHEMA.uniform_series_prefunc,
+       FINALFUNC = MADLIB_SCHEMA.uniform_series_const_finalfunc,
+       STYPE = FLOAT8[],
+       initcond = '{0,0}'
+);
+
+CREATE AGGREGATE MADLIB_SCHEMA.normalilze_series_const(TIMESTAMP, FLOAT8, INTERVAL, TIMESTAMP) (
+       SFUNC = MADLIB_SCHEMA.uniform_series_start_sfunc,
+       PREFUNC = MADLIB_SCHEMA.uniform_series_prefunc,
+       FINALFUNC = MADLIB_SCHEMA.uniform_series_const_finalfunc,
+       STYPE = FLOAT8[],
+       initcond = '{0,0}'
+);
+
+-- normalized series + includging original
+CREATE AGGREGATE MADLIB_SCHEMA.augment_series_avg(TIMESTAMP, FLOAT8, INTERVAL) (
+       SFUNC = MADLIB_SCHEMA.uniform_series_sfunc,
+       PREFUNC = MADLIB_SCHEMA.uniform_series_prefunc,
+       FINALFUNC = MADLIB_SCHEMA.uniform_series_include_original_finalfunc,
+       STYPE = FLOAT8[],
+       initcond = '{0,0}'
+);
+
+CREATE AGGREGATE MADLIB_SCHEMA.augment_series_avg(TIMESTAMP, FLOAT8, INTERVAL, TIMESTAMP) (
+       SFUNC = MADLIB_SCHEMA.uniform_series_start_sfunc,
+       PREFUNC = MADLIB_SCHEMA.uniform_series_prefunc,
+       FINALFUNC = MADLIB_SCHEMA.uniform_series_include_original_finalfunc,
+       STYPE = FLOAT8[],
+       initcond = '{0,0}'
+);
+
+CREATE AGGREGATE MADLIB_SCHEMA.augment_series_const(TIMESTAMP, FLOAT8, INTERVAL) (
+       SFUNC = MADLIB_SCHEMA.uniform_series_sfunc,
+       PREFUNC = MADLIB_SCHEMA.uniform_series_prefunc,
+       FINALFUNC = MADLIB_SCHEMA.uniform_series_const_include_original_finalfunc,
+       STYPE = FLOAT8[],
+       initcond = '{0,0}'
+);
+
+CREATE AGGREGATE MADLIB_SCHEMA.augment_series_const(TIMESTAMP, FLOAT8, INTERVAL, TIMESTAMP) (
+       SFUNC = MADLIB_SCHEMA.uniform_series_start_sfunc,
+       PREFUNC = MADLIB_SCHEMA.uniform_series_prefunc,
+       FINALFUNC = MADLIB_SCHEMA.uniform_series_const_include_original_finalfunc,
+       STYPE = FLOAT8[],
+       initcond = '{0,0}'
+);
+
+-- original sereis with filled gaps
+
+CREATE AGGREGATE MADLIB_SCHEMA.gapfilled_series_avg(TIMESTAMP, FLOAT8, INTERVAL) (
+       SFUNC = MADLIB_SCHEMA.gapfilled_series_sfunc,
+       PREFUNC = MADLIB_SCHEMA.gapfilled_series_prefunc,
+       FINALFUNC = MADLIB_SCHEMA.gapfilled_series_finalfunc,
+       STYPE = FLOAT8[],
+       initcond = '{0,0}'
+);
+
+CREATE AGGREGATE MADLIB_SCHEMA.gapfilled_series_avg(TIMESTAMP, FLOAT8, INTERVAL, TIMESTAMP) (
+       SFUNC = MADLIB_SCHEMA.gapfilled_series_start_sfunc,
+       PREFUNC = MADLIB_SCHEMA.gapfilled_series_prefunc,
+       FINALFUNC = MADLIB_SCHEMA.gapfilled_series_finalfunc,
+       STYPE = FLOAT8[],
+       initcond = '{0,0}'
+);
+
+CREATE AGGREGATE MADLIB_SCHEMA.gapfilled_series_const(TIMESTAMP, FLOAT8, INTERVAL) (
+       SFUNC = MADLIB_SCHEMA.gapfilled_series_sfunc,
+       PREFUNC = MADLIB_SCHEMA.gapfilled_series_prefunc,
+       FINALFUNC = MADLIB_SCHEMA.gapfilled_series_const_finalfunc,
+       STYPE = FLOAT8[],
+       initcond = '{0,0}'
+);
+
+CREATE AGGREGATE MADLIB_SCHEMA.gapfilled_series_const(TIMESTAMP, FLOAT8, INTERVAL, TIMESTAMP) (
+       SFUNC = MADLIB_SCHEMA.gapfilled_series_start_sfunc,
+       PREFUNC = MADLIB_SCHEMA.gapfilled_series_prefunc,
+       FINALFUNC = MADLIB_SCHEMA.gapfilled_series_const_finalfunc,
+       STYPE = FLOAT8[],
+       initcond = '{0,0}'
+);
+
+/*
+Weighted Average using finance definition 
+*/
+CREATE TYPE MADLIB_SCHEMA.avg_type_exp AS(
+	val FLOAT8[],
+	alpha FLOAT8
+);
+
+CREATE TYPE MADLIB_SCHEMA.avg_type_weight AS(
+	val FLOAT8[],
+	weight FLOAT8[]
+);
+
+CREATE FUNCTION MADLIB_SCHEMA.weighted_avg_finalfunc(FLOAT8[]) RETURNS FLOAT8 
+AS 'MODULE_PATHNAME', 'weighted_avg_finalfunc'
+LANGUAGE C IMMUTABLE;
+
+CREATE FUNCTION MADLIB_SCHEMA.exponential_avg_sfunc(INOUT MADLIB_SCHEMA.avg_type_exp, value FLOAT8, alpha FLOAT8) RETURNS MADLIB_SCHEMA.avg_type_exp AS $$
+BEGIN
+	$1.alpha = $3;
+	$1.val = array_append(COALESCE($1.val, '{}'), $2); 
+END
+$$ LANGUAGE plpgsql;
+
+CREATE FUNCTION MADLIB_SCHEMA.exponential_avg_prefunc(INOUT MADLIB_SCHEMA.avg_type_exp, MADLIB_SCHEMA.avg_type_exp) RETURNS MADLIB_SCHEMA.avg_type_exp AS $$
+BEGIN
+	$1.alpha = COALESCE($1.alpha,$2.alpha);
+	$1.val = COALESCE($1.val, '{}')||COALESCE($2.val, '{}');
+END
+$$ LANGUAGE plpgsql;
+
+CREATE FUNCTION MADLIB_SCHEMA.exponential_avg_finalfunc(MADLIB_SCHEMA.avg_type_exp) RETURNS FLOAT8 
+AS 'MODULE_PATHNAME', 'exponential_avg_finalfunc'
+LANGUAGE C IMMUTABLE;
+
+CREATE FUNCTION MADLIB_SCHEMA.weighted_avg_sfunc(INOUT MADLIB_SCHEMA.avg_type_weight, value FLOAT8, weight FLOAT8[]) RETURNS MADLIB_SCHEMA.avg_type_weight AS $$
+BEGIN
+	$1.weight = $3;
+	$1.val = array_append(COALESCE($1.val, '{}'), $2); 
+END
+$$ LANGUAGE plpgsql;
+
+CREATE FUNCTION MADLIB_SCHEMA.weighted_avg_prefunc(INOUT MADLIB_SCHEMA.avg_type_weight, MADLIB_SCHEMA.avg_type_weight) RETURNS MADLIB_SCHEMA.avg_type_weight AS $$
+BEGIN
+	$1.weight = COALESCE($1.weight,$2.weight);
+	$1.val = COALESCE($1.val, '{}')||COALESCE($2.val, '{}');
+END
+$$ LANGUAGE plpgsql;
+
+CREATE FUNCTION MADLIB_SCHEMA.weighted_avg_finalfunc(MADLIB_SCHEMA.avg_type_weight) RETURNS FLOAT8 
+AS 'MODULE_PATHNAME', 'weighted_avg_finalfunc_full'
+LANGUAGE C IMMUTABLE;
+
+CREATE AGGREGATE MADLIB_SCHEMA.weighted_avg(FLOAT8) (
+       SFUNC = array_append,
+       PREFUNC = array_cat,
+       FINALFUNC = MADLIB_SCHEMA.weighted_avg_finalfunc,
+       STYPE = FLOAT8[],
+       initcond = '{}'
+);
+
+CREATE AGGREGATE MADLIB_SCHEMA.exponential_avg(FLOAT8, FLOAT8) (
+       SFUNC = MADLIB_SCHEMA.exponential_avg_sfunc,
+       PREFUNC = MADLIB_SCHEMA.exponential_avg_prefunc,
+       FINALFUNC = MADLIB_SCHEMA.exponential_avg_finalfunc,
+       STYPE = MADLIB_SCHEMA.avg_type_exp
+);
+
+CREATE AGGREGATE MADLIB_SCHEMA.weighted_avg(FLOAT8, FLOAT8[]) (
+       SFUNC = MADLIB_SCHEMA.weighted_avg_sfunc,
+       PREFUNC = MADLIB_SCHEMA.weighted_avg_prefunc,
+       FINALFUNC = MADLIB_SCHEMA.weighted_avg_finalfunc,
+       STYPE = MADLIB_SCHEMA.avg_type_weight
+);
+
+/*
+
+	time intercept query
+
+*/
+
+CREATE TYPE MADLIB_SCHEMA.at_time_type AS(
+	value FLOAT8,
+	id BIGINT,
+	type BOOL
+);
+
+CREATE TYPE MADLIB_SCHEMA.at_time_return_type AS(
+	value FLOAT8,
+	id BIGINT
+);
+
+CREATE FUNCTION MADLIB_SCHEMA.at_time_sfunc(MADLIB_SCHEMA.at_time_type, FLOAT8, BIGINT, BOOL) RETURNS MADLIB_SCHEMA.at_time_type 
+AS 'MODULE_PATHNAME', 'at_time_sfunc'
+LANGUAGE C IMMUTABLE;
+
+CREATE FUNCTION MADLIB_SCHEMA.at_time_sfunc(MADLIB_SCHEMA.at_time_type, FLOAT8, BIGINT, FLOAT8) RETURNS MADLIB_SCHEMA.at_time_type 
+AS 'MODULE_PATHNAME', 'at_time_seprareate_rows_sfunc'
+LANGUAGE C IMMUTABLE;
+
+CREATE FUNCTION MADLIB_SCHEMA.at_time_prefunc(MADLIB_SCHEMA.at_time_type, MADLIB_SCHEMA.at_time_type) RETURNS MADLIB_SCHEMA.at_time_type 
+AS 'MODULE_PATHNAME', 'at_time_prefunc'
+LANGUAGE C IMMUTABLE;
+
+CREATE FUNCTION MADLIB_SCHEMA.at_time_finalfunc(MADLIB_SCHEMA.at_time_type) RETURNS MADLIB_SCHEMA.at_time_return_type 
+AS 'MODULE_PATHNAME', 'at_time_finalfunc'
+LANGUAGE C IMMUTABLE;
+
+CREATE AGGREGATE MADLIB_SCHEMA.time_intercept(FLOAT8, BIGINT, BOOL) (
+       SFUNC = MADLIB_SCHEMA.at_time_sfunc,
+       PREFUNC = MADLIB_SCHEMA.at_time_prefunc,
+       FINALFUNC = MADLIB_SCHEMA.at_time_finalfunc,
+       STYPE = MADLIB_SCHEMA.at_time_type
+);
+
+CREATE AGGREGATE MADLIB_SCHEMA.time_intercept(FLOAT8, BIGINT, FLOAT8) (
+       SFUNC = MADLIB_SCHEMA.at_time_sfunc,
+       PREFUNC = MADLIB_SCHEMA.at_time_prefunc,
+       FINALFUNC = MADLIB_SCHEMA.at_time_finalfunc,
+       STYPE = MADLIB_SCHEMA.at_time_type
+);
+
+/*
+	Performance test 
+
+OID of sfunc
+INTERVAL of interest after a special row
+BOOL special
+TIMESTAMP of the current row
+PRICE of the current transaciton
+*/
+
+CREATE TYPE MADLIB_SCHEMA.performance_type AS(
+	value_array FLOAT8[],
+	trade_signal BOOL[],
+	timestamp_array TIMESTAMP[]
+);
+
+/*
+	Sample function to used for the evaluation
+*/
+
+CREATE OR REPLACE FUNCTION MADLIB_SCHEMA.performance_window(bytea, INT8) RETURNS FLOAT8[] 
+AS 'MODULE_PATHNAME', 'performance_window' LANGUAGE C IMMUTABLE ;
+
+/*
+	Evaluaton window function.
+*/
+
+
+CREATE OR REPLACE FUNCTION MADLIB_SCHEMA.performance_array_window_sfunc(INT8, INTERVAL, BOOL, TIMESTAMP, FLOAT8, INT8, FLOAT8) RETURNS INT8 
+AS 'MODULE_PATHNAME', 'performance_array_window_sfunc' LANGUAGE C IMMUTABLE;
+
+CREATE OR REPLACE FUNCTION MADLIB_SCHEMA.performance_array_window_prefunc(INT8, INT8) RETURNS INT8 
+AS 'MODULE_PATHNAME', 'performance_array_window_prefunc' LANGUAGE C IMMUTABLE ;
+
+CREATE OR REPLACE FUNCTION MADLIB_SCHEMA.performance_array_window_finalfunc(INT8) RETURNS MADLIB_SCHEMA.performance_type 
+AS 'MODULE_PATHNAME', 'performance_array_window_finalfunc' LANGUAGE C IMMUTABLE ;
+
+CREATE OR REPLACE FUNCTION MADLIB_SCHEMA.performance_array_window_fast_sfunc(INT8, INT4, INTERVAL, BOOL, TIMESTAMP, FLOAT8, INT8, FLOAT8) RETURNS INT8 
+AS 'MODULE_PATHNAME', 'performance_array_window_fast_sfunc' LANGUAGE C IMMUTABLE;
+
+CREATE OR REPLACE FUNCTION MADLIB_SCHEMA.performance_array_window_fast_finalfunc(INT8) RETURNS FLOAT8[] 
+AS 'MODULE_PATHNAME', 'performance_array_window_fast_finalfunc' LANGUAGE C IMMUTABLE ;
+
+CREATE AGGREGATE MADLIB_SCHEMA.performance_extract(INTERVAL, BOOL, TIMESTAMP, FLOAT8, INT8, FLOAT8) (
+       SFUNC = MADLIB_SCHEMA.performance_array_window_sfunc,
+       PREFUNC = MADLIB_SCHEMA.performance_array_window_prefunc,
+       FINALFUNC = MADLIB_SCHEMA.performance_array_window_finalfunc,
+       STYPE = INT8
+);
+
+CREATE AGGREGATE performance_extract(INT4, INTERVAL, BOOL, TIMESTAMP, FLOAT8, INT8, FLOAT8) (
+       SFUNC = MADLIB_SCHEMA.performance_array_window_fast_sfunc,
+       PREFUNC = MADLIB_SCHEMA.performance_array_window_prefunc,
+       FINALFUNC = MADLIB_SCHEMA.performance_array_window_fast_finalfunc,
+       STYPE = INT8
+);
+
+/*
+	Determine OID of a function 
+
+*/
+
+CREATE FUNCTION MADLIB_SCHEMA.find_function_oid(TEXT) RETURNS INT4 AS $$
+DECLARE
+	oid_val INT4;
+BEGIN
+	EXECUTE 'SELECT '''||$1||'''::regprocedure::int4;' INTO oid_val;
+	RETURN oid_val;
+END
+$$ LANGUAGE plpgsql;
+
+/*
+	Event Detection
+*/
+
+CREATE TYPE MADLIB_SCHEMA.event_detection_type AS(
+	val FLOAT8[],
+	OID INT4,
+	input FLOAT8[]
+);
+
+CREATE TYPE MADLIB_SCHEMA.event_detection_pearson_type AS(
+	val FLOAT8[],
+	ref FLOAT8[]
+);
+
+CREATE FUNCTION MADLIB_SCHEMA.event_detection_sfunc(INOUT MADLIB_SCHEMA.event_detection_type, value FLOAT8, OID INT4, input FLOAT8[]) RETURNS MADLIB_SCHEMA.event_detection_type AS $$
+BEGIN
+	IF($1.OID IS NULL) THEN
+		$1.OID = $3;
+		$1.input = input;
+	END IF;
+	$1.val = array_append(COALESCE($1.val, '{}'), $2); 
+END
+$$ LANGUAGE plpgsql;
+
+CREATE FUNCTION MADLIB_SCHEMA.event_detection_sfunc(INOUT FLOAT8[], value FLOAT8, delta FLOAT) RETURNS FLOAT8[] AS $$
+BEGIN
+	 IF(COALESCE($1[1],value) >= value) THEN
+	 	$1[1] = value;
+	 END IF;
+	 IF(COALESCE($1[2],value) <= value) THEN
+	 	$1[2] = value;
+	 END IF;
+	 $1[3] = delta;
+END
+$$ LANGUAGE plpgsql;
+
+CREATE FUNCTION MADLIB_SCHEMA.event_detection_prefunc(INOUT MADLIB_SCHEMA.event_detection_type, MADLIB_SCHEMA.event_detection_type) RETURNS MADLIB_SCHEMA.event_detection_type AS $$
+BEGIN
+	$1.OID = COALESCE($1.OID,$2.OID);
+	$1.input = COALESCE($1.input,$2.input);
+	$1.val = COALESCE($1.val, '{}')||COALESCE($2.val, '{}');
+END
+$$ LANGUAGE plpgsql;
+
+CREATE FUNCTION MADLIB_SCHEMA.event_detection_prefunc(INOUT FLOAT8[], FLOAT8[]) RETURNS FLOAT8[] AS $$
+BEGIN
+	IF(COALESCE($1[1],$2[1]) >= COALESCE($2[1],$1[1])) THEN
+		$1[1] = $2[1];
+	END IF;
+	IF(COALESCE($1[2],$2[2]) <= COALESCE($2[2],$1[2])) THEN
+		$1[2] = $2[2];
+	END IF;
+	$1[3] = COALESCE($1[3], $2[3]);
+END
+$$ LANGUAGE plpgsql;
+
+CREATE FUNCTION MADLIB_SCHEMA.event_detection_finalfunc(FLOAT8[]) RETURNS FLOAT8 AS $$
+BEGIN
+	IF(($1[2]-$1[1]) >= $1[3]) THEN
+		RETURN 1.0;
+	ELSE
+		RETURN 0.0;
+	END IF;
+END
+$$ LANGUAGE plpgsql;
+
+CREATE FUNCTION MADLIB_SCHEMA.event_detection_passOID_finalfunc(MADLIB_SCHEMA.event_detection_type) RETURNS FLOAT8 
+AS 'MODULE_PATHNAME', 'event_detection_passOID_finalfunc'
+LANGUAGE C IMMUTABLE;
+
+CREATE FUNCTION MADLIB_SCHEMA.event_detection_pearson_sfunc(INOUT MADLIB_SCHEMA.event_detection_pearson_type, value FLOAT8, ref FLOAT8[]) RETURNS MADLIB_SCHEMA.event_detection_pearson_type AS $$
+BEGIN
+	if($1.ref IS NULL) THEN
+		$1.ref = $3;
+	END IF;
+	$1.val = array_append(COALESCE($1.val, '{}'),$2); 
+END
+$$ LANGUAGE plpgsql;
+
+CREATE FUNCTION MADLIB_SCHEMA.event_detection_pearson_prefunc(INOUT MADLIB_SCHEMA.event_detection_pearson_type, MADLIB_SCHEMA.event_detection_pearson_type) RETURNS MADLIB_SCHEMA.event_detection_pearson_type AS $$
+BEGIN
+	$1.ref = COALESCE($1.ref, '{}')||COALESCE($2.ref, '{}');
+	$1.val = COALESCE($1.val, '{}')||COALESCE($2.val, '{}');
+END
+$$ LANGUAGE plpgsql;
+
+CREATE FUNCTION MADLIB_SCHEMA.event_detection_comp_sfunc(INOUT MADLIB_SCHEMA.event_detection_pearson_type, value FLOAT8, BOOL) RETURNS MADLIB_SCHEMA.event_detection_pearson_type AS $$
+BEGIN
+	IF($3) THEN
+		$1.val = array_append(COALESCE($1.val, '{}'),$2);
+	ELSE
+		$1.ref = array_append(COALESCE($1.ref, '{}'),$2);
+	END IF; 
+END
+$$ LANGUAGE plpgsql;
+
+CREATE FUNCTION MADLIB_SCHEMA.event_detection_pearson_finalfunc(MADLIB_SCHEMA.event_detection_pearson_type) RETURNS FLOAT8 
+AS 'MODULE_PATHNAME', 'event_detection_pearson_finalfunc'
+LANGUAGE C IMMUTABLE;
+
+CREATE AGGREGATE MADLIB_SCHEMA.event_detection_delta(FLOAT8, FLOAT8) (
+       SFUNC = MADLIB_SCHEMA.event_detection_sfunc,
+       PREFUNC = MADLIB_SCHEMA.event_detection_prefunc,
+       FINALFUNC = MADLIB_SCHEMA.event_detection_finalfunc,
+       STYPE = FLOAT8[]
+);
+
+CREATE AGGREGATE MADLIB_SCHEMA.event_detection_oid(FLOAT8, INT4, FLOAT8[]) (
+       SFUNC = MADLIB_SCHEMA.event_detection_sfunc,
+       PREFUNC = MADLIB_SCHEMA.event_detection_prefunc,
+       FINALFUNC = MADLIB_SCHEMA.event_detection_passOID_finalfunc,
+       STYPE = event_detection_type
+);
+
+CREATE AGGREGATE MADLIB_SCHEMA.event_detection_pearson(FLOAT8, FLOAT8[]) (
+       SFUNC = MADLIB_SCHEMA.event_detection_pearson_sfunc,
+       PREFUNC = MADLIB_SCHEMA.event_detection_pearson_prefunc,
+       FINALFUNC = MADLIB_SCHEMA.event_detection_pearson_finalfunc,
+       STYPE = MADLIB_SCHEMA.event_detection_pearson_type
+);
+
+CREATE AGGREGATE MADLIB_SCHEMA.event_detection_pearson(FLOAT8, BOOL) (
+       SFUNC = MADLIB_SCHEMA.event_detection_comp_sfunc,
+       PREFUNC = MADLIB_SCHEMA.event_detection_pearson_prefunc,
+       FINALFUNC = MADLIB_SCHEMA.event_detection_pearson_finalfunc,
+       STYPE = MADLIB_SCHEMA.event_detection_pearson_type
+);
+

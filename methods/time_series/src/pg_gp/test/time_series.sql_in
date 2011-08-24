@@ -1,0 +1,98 @@
+SET client_min_messages = 'ERROR';
+
+DROP function IF EXISTS MADLIB_SCHEMA.install_test();
+CREATE FUNCTION MADLIB_SCHEMA.install_test() RETURNS VOID AS $$
+BEGIN
+
+--DATA SET-UP TEST
+
+drop table test_values;
+create table test_values(
+	ts timestamp,
+	symbol text,
+	id bigint,
+	bid float8
+) distributed randomly;
+
+drop table test_values1;
+create table test_values1(
+	ts timestamp,
+	symbol text,
+	id bigint,
+	bid float8
+) distributed randomly;
+
+drop table test_values_result;
+create table test_values_result(
+	ts timestamp,
+	symbol text,
+	id bigint,
+	bid float8
+) distributed randomly;
+
+DROP TABLE test_start;
+CREATE TABLE test_start(
+	trade BOOL,
+	trade_time TIMESTAMP,
+	trade_price FLOAT8,
+	trade_quantity INT8,
+	signal FLOAT8
+) DISTRIBUTED RANDOMLY;
+
+INSERT INTO test_values SELECT G.k, 'IBM', (random()*1000)::BIGINT, (EXTRACT (EPOCH FROM G.k)) FROM (SELECT '2011-07-20 15:56:39.4564'::TIMESTAMP + random() * g.a * INTERVAL '1 second' as k from generate_series(1,100) g(a)) AS G ORDER BY G.k;
+
+INSERT INTO test_values1 SELECT G.k, CASE WHEN (random() > .5) THEN 'IBM' ELSE 'INTEL' END, (random()*1000)::BIGINT, EXTRACT (EPOCH FROM G.k) FROM (SELECT '2011-07-20 15:56:39.4564'::TIMESTAMP + random() * g.a * INTERVAL '1 second' as k from generate_series(1,20) g(a)) AS G ORDER BY G.k;
+
+INSERT INTO castle_rock.test_start VALUES('TRUE', '2011-07-20 15:56:30'::TIMESTAMP, 9.0, 100, NULL);
+INSERT INTO castle_rock.test_start VALUES('FALSE', '2011-07-20 15:56:31'::TIMESTAMP, NULL, 100, 1.5);
+INSERT INTO castle_rock.test_start VALUES('TRUE', '2011-07-20 15:56:32'::TIMESTAMP, 10.0, 200, NULL);
+INSERT INTO castle_rock.test_start VALUES('TRUE', '2011-07-20 15:56:33'::TIMESTAMP, 11.0, 200, NULL);
+INSERT INTO castle_rock.test_start VALUES('TRUE', '2011-07-20 15:56:34'::TIMESTAMP, 12.0, 200, NULL);
+INSERT INTO castle_rock.test_start VALUES('TRUE', '2011-07-20 15:56:35'::TIMESTAMP, 13.0, 200, NULL);
+INSERT INTO castle_rock.test_start VALUES('TRUE', '2011-07-20 15:56:36'::TIMESTAMP, 14.0, 200, NULL);
+INSERT INTO castle_rock.test_start VALUES('TRUE', '2011-07-20 15:56:37'::TIMESTAMP, 15.0, 200, NULL);
+INSERT INTO castle_rock.test_start VALUES('TRUE', '2011-07-20 15:56:38'::TIMESTAMP, 16.0, 200, NULL);
+INSERT INTO castle_rock.test_start VALUES('TRUE', '2011-07-20 15:56:39'::TIMESTAMP, 17.0, 200, NULL);
+INSERT INTO castle_rock.test_start VALUES('TRUE', '2011-07-20 15:56:44'::TIMESTAMP, 18.0, 200, NULL);
+INSERT INTO castle_rock.test_start VALUES('FALSE', '2011-07-20 15:56:45'::TIMESTAMP, NULL, 100, -1.5);
+INSERT INTO castle_rock.test_start VALUES('TRUE', '2011-07-20 15:56:46'::TIMESTAMP, 3.0, 100, NULL);
+INSERT INTO castle_rock.test_start VALUES('TRUE', '2011-07-20 15:56:47'::TIMESTAMP, 2.0, 100, NULL);
+
+
+-- FUNCTION TEST
+
+SELECT unstruct(G.k), symbol FROM (SELECT normalilze_series_avg(ts, bid, '1 second'::interval) OVER(PARTITION BY symbol ORDER BY ts) as k, symbol FROM test_values) as G;
+SELECT unstruct(G.k), symbol FROM (SELECT normalilze_series_const(ts, bid, '1 second'::interval) OVER(PARTITION BY symbol ORDER BY ts) as k, symbol FROM test_values) as G;
+SELECT unstruct(G.k), symbol FROM (SELECT augment_series_avg(ts, bid, '1 second'::interval) OVER(PARTITION BY symbol ORDER BY ts) as k, symbol FROM test_values) as G;
+SELECT unstruct(G.k), symbol FROM (SELECT augment_series_const(ts, bid, '1 second'::interval) OVER(PARTITION BY symbol ORDER BY ts) as k, symbol FROM test_values) as G;
+SELECT unstruct(G.k), symbol FROM (SELECT gapfilled_series_avg(ts, bid, '1 second'::interval) OVER(PARTITION BY symbol ORDER BY ts) as k, symbol FROM test_values) as G;
+SELECT unstruct(G.k), symbol FROM (SELECT gapfilled_series_const(ts, bid, '1 second'::interval) OVER(PARTITION BY symbol ORDER BY ts) as k, symbol FROM test_values) as G;
+SELECT unstruct(G.k), symbol FROM (SELECT normalilze_series_avg(ts, bid, '1 second'::interval, '2011-07-20 15:56:30.4564'::TIMESTAMP) OVER(PARTITION BY symbol ORDER BY ts) as k, symbol FROM test_values) as G;
+SELECT unstruct(G.k), symbol FROM (SELECT normalilze_series_const(ts, bid, '1 second'::interval, '2011-07-20 15:56:30.4564'::TIMESTAMP) OVER(PARTITION BY symbol ORDER BY ts) as k, symbol FROM test_values) as G;
+SELECT unstruct(G.k), symbol FROM (SELECT augment_series_avg(ts, bid, '1 second'::interval, '2011-07-20 15:56:30.4564'::TIMESTAMP) OVER(PARTITION BY symbol ORDER BY ts) as k, symbol FROM test_values) as G;
+SELECT unstruct(G.k), symbol FROM (SELECT augment_series_const(ts, bid, '1 second'::interval, '2011-07-20 15:56:30.4564'::TIMESTAMP) OVER(PARTITION BY symbol ORDER BY ts) as k, symbol FROM test_values) as G;
+SELECT unstruct(G.k), symbol FROM (SELECT gapfilled_series_avg(ts, bid, '1 second'::interval, '2011-07-20 15:56:30.4564'::TIMESTAMP) OVER(PARTITION BY symbol ORDER BY ts) as k, symbol FROM test_values) as G;
+SELECT unstruct(G.k), symbol FROM (SELECT gapfilled_series_const(ts, bid, '1 second'::interval, '2011-07-20 15:56:30.4564'::TIMESTAMP) OVER(PARTITION BY symbol ORDER BY ts) as k, symbol FROM test_values) as G;
+
+SELECT weighted_avg(bid) OVER(ORDER BY ts ROWS BETWEEN 3 PRECEDING AND CURRENT ROW) FROM test_values;
+SELECT exponential_avg(bid, .1) OVER(ORDER BY ts ROWS BETWEEN 3 PRECEDING AND CURRENT ROW) FROM test_values;
+SELECT weighted_avg(bid, ARRAY[12312,23222,34342,45565,345354]) OVER(ORDER BY ts ROWS BETWEEN 3 PRECEDING AND CURRENT ROW) FROM test_values;
+
+SELECT k, symbol FROM (SELECT time_intercept(bid, id, des) OVER(PARTITION by symbol order by ts range between '10 days'::INTERVAL preceding and current row) as k, symbol from (SELECT ts, bid, id, symbol, TRUE AS des FROM test_values UNION ALL SELECT ts, bid, id, symbol, FALSE AS des FROM test_values1) as g) as g WHERE g.k IS NOT NULL;
+SELECT k, symbol FROM (SELECT time_intercept(b2, id, b1) OVER(PARTITION by symbol order by ts range between '10 days'::INTERVAL preceding and current row) as k, symbol from (SELECT ts, NULL AS b1, id, symbol, bid AS b2 FROM test_values UNION ALL SELECT ts, bid AS b1, id, symbol, NULL AS b2 FROM test_values1) as g) as g WHERE g.k IS NOT NULL;
+
+SELECT find_function_oid('performance_window(bytea, INT8)');
+
+SELECT * FROM (SELECT trade_time, performance_extract(g.k::INT4,'10 second'::interval, trade, trade_time, trade_price, trade_quantity, signal) OVER(ORDER BY trade_time DESC) as l FROM castle_rock.test_start, (SELECT find_function_oid('performance_window(bytea, INT8)') as k) as g) as k WHERE l IS NOT NULL ORDER BY trade_time;
+SELECT * FROM (SELECT trade_time, performance_extract('10 second'::interval, trade, trade_time, trade_price, trade_quantity, signal) OVER(ORDER BY trade_time DESC) as l FROM castle_rock.test_start) as k WHERE l IS NOT NULL ORDER BY trade_time;
+
+SELECT event_detection_delta(bid, 4.8::FLOAT8) OVER(PARTITION BY symbol ORDER BY ts RANGE BETWEEN '5 sec'::INTERVAL PRECEDING AND CURRENT ROW) AS g, symbol, ts FROM test_values ORDER BY symbol, ts;
+SELECT event_detection_pearson(bid, ARRAY[8,8,8,2]::FLOAT[]) OVER(PARTITION BY symbol ORDER BY ts RANGE BETWEEN '5 sec'::INTERVAL PRECEDING AND CURRENT ROW), symbol, ts FROM test_values ORDER BY symbol, ts;
+SELECT event_detection_pearson(bid, which) OVER(PARTITION BY symbol ORDER BY ts RANGE BETWEEN '5 sec'::INTERVAL PRECEDING AND CURRENT ROW), symbol, ts FROM (SELECT * FROM (SELECT *, TRUE AS which FROM test_values) AS k1 UNION ALL (SELECT *, FALSE AS which FROM test_values1)) as k ORDER BY symbol, ts;
+SELECT event_detection_oid(bid, g.a::INT4, NULL) FROM test_values, (SELECT 'madlib.array_sum(ANYARRAY)'::regprocedure::oid as a) g;
+
+END
+$$ LANGUAGE plpgsql;
+
+SELECT MADLIB_SCHEMA.install_test();
+DROP FUNCTION MADLIB_SCHEMA.install_test();
