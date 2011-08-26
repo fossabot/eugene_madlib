@@ -47,7 +47,7 @@ CREATE TYPE MADLIB_SCHEMA.series_return_type AS(
 
 -- just normalize series
 
-CREATE OR REPLACE FUNCTION MADLIB_SCHEMA.unstruct(series_type) RETURNS SETOF MADLIB_SCHEMA.series_return_type AS
+CREATE OR REPLACE FUNCTION MADLIB_SCHEMA.unstruct(MADLIB_SCHEMA.series_type) RETURNS SETOF MADLIB_SCHEMA.series_return_type AS
 'MODULE_PATHNAME', 'unstruct_series'
 LANGUAGE C IMMUTABLE STRICT;
 
@@ -306,14 +306,14 @@ CREATE FUNCTION MADLIB_SCHEMA.at_time_finalfunc(MADLIB_SCHEMA.at_time_type) RETU
 AS 'MODULE_PATHNAME', 'at_time_finalfunc'
 LANGUAGE C IMMUTABLE;
 
-CREATE AGGREGATE MADLIB_SCHEMA.at_time(FLOAT8, BIGINT, BOOL) (
+CREATE AGGREGATE MADLIB_SCHEMA.time_intercept(FLOAT8, BIGINT, BOOL) (
        SFUNC = MADLIB_SCHEMA.at_time_sfunc,
        PREFUNC = MADLIB_SCHEMA.at_time_prefunc,
        FINALFUNC = MADLIB_SCHEMA.at_time_finalfunc,
        STYPE = MADLIB_SCHEMA.at_time_type
 );
 
-CREATE AGGREGATE MADLIB_SCHEMA.at_time(FLOAT8, BIGINT, FLOAT8) (
+CREATE AGGREGATE MADLIB_SCHEMA.time_intercept(FLOAT8, BIGINT, FLOAT8) (
        SFUNC = MADLIB_SCHEMA.at_time_sfunc,
        PREFUNC = MADLIB_SCHEMA.at_time_prefunc,
        FINALFUNC = MADLIB_SCHEMA.at_time_finalfunc,

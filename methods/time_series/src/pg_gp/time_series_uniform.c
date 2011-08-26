@@ -307,7 +307,7 @@ Datum uniform_series_sfunc(PG_FUNCTION_ARGS)
 				}
 			}
 		}
-		
+				
 		ArrayType *pgarray;
 		pgarray = construct_array((Datum *)result,
 		result_size,FLOAT8OID,
@@ -390,7 +390,7 @@ Datum uniform_series_start_sfunc(PG_FUNCTION_ARGS)
 			result[1] = array1[1];
 		}
 	}
-		}
+	}
  
  	ArrayType *pgarray;
 	pgarray = construct_array((Datum *)result,
@@ -407,7 +407,6 @@ Datum uniform_series_prefunc(PG_FUNCTION_ARGS)
 	
 	ArrayType *row_array1 = PG_GETARG_ARRAYTYPE_P(0);
 	ArrayType *row_array2 = PG_GETARG_ARRAYTYPE_P(1);
-	
 	
 	float8 *result = (float8*) palloc(sizeof(float8)*9);
 	memset(result, 0, sizeof(float8)*9);
