@@ -370,7 +370,7 @@ CREATE AGGREGATE MADLIB_SCHEMA.performance_extract(INTERVAL, BOOL, TIMESTAMP, FL
        STYPE = INT8
 );
 
-CREATE AGGREGATE performance_extract(INT4, INTERVAL, BOOL, TIMESTAMP, FLOAT8, INT8, FLOAT8) (
+CREATE AGGREGATE MADLIB_SCHEMA.performance_extract(INT4, INTERVAL, BOOL, TIMESTAMP, FLOAT8, INT8, FLOAT8) (
        SFUNC = MADLIB_SCHEMA.performance_array_window_fast_sfunc,
        PREFUNC = MADLIB_SCHEMA.performance_array_window_prefunc,
        FINALFUNC = MADLIB_SCHEMA.performance_array_window_fast_finalfunc,

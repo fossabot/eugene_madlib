@@ -1,12 +1,10 @@
 SET client_min_messages = 'ERROR';
 
-DROP function IF EXISTS install_test();
-CREATE FUNCTION install_test() RETURNS VOID AS $$
+DROP FUNCTION IF EXISTS MADLIB_SCHEMA.install_test();
+CREATE FUNCTION MADLIB_SCHEMA.install_test() RETURNS VOID AS $$
 DECLARE
 	result FLOAT := 0;
 BEGIN
-
---DATA SET-UP TEST
 
 create temp table test_values(
 	ts timestamp,
@@ -59,107 +57,106 @@ INSERT INTO test_start VALUES('TRUE', '2011-07-20 15:56:47'::TIMESTAMP, 2.0, 100
 
 -- FUNCTION TEST
 
-SELECT INTO result sum((r).value) FROM (SELECT unstruct(G.k) as r, symbol FROM (SELECT normalilze_series_avg(ts, bid, '1 second'::interval) OVER(PARTITION BY symbol ORDER BY ts, random()) as k, symbol FROM test_values) as G) as G;
+SELECT INTO result sum((r ).value) FROM (SELECT MADLIB_SCHEMA.unstruct(G.k) as r, symbol FROM (SELECT MADLIB_SCHEMA.normalilze_series_avg(ts, bid, '1 second'::interval) OVER(PARTITION BY symbol ORDER BY ts, random()) as k, symbol FROM test_values) as G) as G;
 IF((result-167833941152.819)^2 > .001) THEN
 	RAISE EXCEPTION 'normalilze_series_avg() - failed';
 END IF;
-SELECT INTO result sum((r).value) FROM (SELECT unstruct(G.k) as r, symbol FROM (SELECT normalilze_series_const(ts, bid, '1 second'::interval) OVER(PARTITION BY symbol ORDER BY ts, random()) as k, symbol FROM test_values) as G) as G;
+SELECT INTO result sum((r ).value) FROM (SELECT MADLIB_SCHEMA.unstruct(G.k) as r, symbol FROM (SELECT MADLIB_SCHEMA.normalilze_series_const(ts, bid, '1 second'::interval) OVER(PARTITION BY symbol ORDER BY ts, random()) as k, symbol FROM test_values) as G) as G;
 IF((result-167833941063.419)^2 > .001) THEN
 	RAISE EXCEPTION 'normalilze_series_const() - failed';
 END IF;
-SELECT INTO result sum((r).value) FROM (SELECT unstruct(G.k) as r, symbol FROM (SELECT augment_series_avg(ts, bid, '1 second'::interval) OVER(PARTITION BY symbol ORDER BY ts, random()) as k, symbol FROM test_values) as G) as G;
+SELECT INTO result sum((r ).value) FROM (SELECT MADLIB_SCHEMA.unstruct(G.k) as r, symbol FROM (SELECT MADLIB_SCHEMA.augment_series_avg(ts, bid, '1 second'::interval) OVER(PARTITION BY symbol ORDER BY ts, random()) as k, symbol FROM test_values) as G) as G;
 IF((result-285842180953.896)^2 > .001) THEN
 	RAISE EXCEPTION 'augment_series_avg() - failed';
 END IF;
-SELECT INTO result sum((r).value) FROM (SELECT unstruct(G.k) as r, symbol FROM (SELECT augment_series_const(ts, bid, '1 second'::interval) OVER(PARTITION BY symbol ORDER BY ts, random()) as k, symbol FROM test_values) as G) as G;
+SELECT INTO result sum((r ).value) FROM (SELECT MADLIB_SCHEMA.unstruct(G.k) as r, symbol FROM (SELECT MADLIB_SCHEMA.augment_series_const(ts, bid, '1 second'::interval) OVER(PARTITION BY symbol ORDER BY ts, random()) as k, symbol FROM test_values) as G) as G;
 IF((result-285842180864.495)^2 > .001) THEN
 	RAISE EXCEPTION 'augment_series_const() - failed';
 END IF;
-SELECT INTO result sum((r).value) FROM (SELECT unstruct(G.k) as r, symbol FROM (SELECT gapfilled_series_avg(ts, bid, '1 second'::interval) OVER(PARTITION BY symbol ORDER BY ts, random()) as k, symbol FROM test_values) as G) as G;
+SELECT INTO result sum((r ).value) FROM (SELECT MADLIB_SCHEMA.unstruct(G.k) as r, symbol FROM (SELECT MADLIB_SCHEMA.gapfilled_series_avg(ts, bid, '1 second'::interval) OVER(PARTITION BY symbol ORDER BY ts, random()) as k, symbol FROM test_values) as G) as G;
 IF((result-260929330321.524)^2 > .001) THEN
 	RAISE EXCEPTION 'gapfilled_series_avg() - failed';
 END IF;
-SELECT INTO result sum((r).value) FROM (SELECT unstruct(G.k) as r, symbol FROM (SELECT gapfilled_series_const(ts, bid, '1 second'::interval) OVER(PARTITION BY symbol ORDER BY ts, random()) as k, symbol FROM test_values) as G) as G;
+SELECT INTO result sum((r ).value) FROM (SELECT MADLIB_SCHEMA.unstruct(G.k) as r, symbol FROM (SELECT MADLIB_SCHEMA.gapfilled_series_const(ts, bid, '1 second'::interval) OVER(PARTITION BY symbol ORDER BY ts, random()) as k, symbol FROM test_values) as G) as G;
 IF((result-260929330321.524)^2 > .001) THEN
 	RAISE EXCEPTION 'gapfilled_series_const() - failed';
 END IF;
-SELECT INTO result sum((r).value) FROM (SELECT unstruct(G.k) as r, symbol FROM (SELECT normalilze_series_avg(ts, bid, '1 second'::interval, '2011-07-20 15:56:30.4564'::TIMESTAMP) OVER(PARTITION BY symbol ORDER BY ts, random()) as k, symbol FROM test_values) as G) as G;
+SELECT INTO result sum((r ).value) FROM (SELECT MADLIB_SCHEMA.unstruct(G.k) as r, symbol FROM (SELECT MADLIB_SCHEMA.normalilze_series_avg(ts, bid, '1 second'::interval, '2011-07-20 15:56:30.4564'::TIMESTAMP) OVER(PARTITION BY symbol ORDER BY ts, random()) as k, symbol FROM test_values) as G) as G;
 IF((result-182257169851.44)^2 > .001) THEN
 	RAISE EXCEPTION 'normalilze_series_avg() - failed';
 END IF;
-SELECT INTO result sum((r).value) FROM (SELECT unstruct(G.k) as r, symbol FROM (SELECT normalilze_series_const(ts, bid, '1 second'::interval, '2011-07-20 15:56:30.4564'::TIMESTAMP) OVER(PARTITION BY symbol ORDER BY ts, random()) as k, symbol FROM test_values) as G) as G;
+SELECT INTO result sum((r ).value) FROM (SELECT MADLIB_SCHEMA.unstruct(G.k) as r, symbol FROM (SELECT MADLIB_SCHEMA.normalilze_series_const(ts, bid, '1 second'::interval, '2011-07-20 15:56:30.4564'::TIMESTAMP) OVER(PARTITION BY symbol ORDER BY ts, random()) as k, symbol FROM test_values) as G) as G;
 IF((result-182257169761.44)^2 > .001) THEN
 	RAISE EXCEPTION 'normalilze_series_const() - failed';
 END IF;
-SELECT INTO result sum((r).value) FROM (SELECT unstruct(G.k) as r, symbol FROM (SELECT augment_series_avg(ts, bid, '1 second'::interval, '2011-07-20 15:56:30.4564'::TIMESTAMP) OVER(PARTITION BY symbol ORDER BY ts, random()) as k, symbol FROM test_values) as G) as G;
+SELECT INTO result sum((r ).value) FROM (SELECT MADLIB_SCHEMA.unstruct(G.k) as r, symbol FROM (SELECT MADLIB_SCHEMA.augment_series_avg(ts, bid, '1 second'::interval, '2011-07-20 15:56:30.4564'::TIMESTAMP) OVER(PARTITION BY symbol ORDER BY ts, random()) as k, symbol FROM test_values) as G) as G;
 IF((result-300265409536.815)^2 > .001) THEN
 	RAISE EXCEPTION 'augment_series_avg() - failed';
 END IF;
-SELECT INTO result sum((r).value) FROM (SELECT unstruct(G.k) as r, symbol FROM (SELECT augment_series_const(ts, bid, '1 second'::interval, '2011-07-20 15:56:30.4564'::TIMESTAMP) OVER(PARTITION BY symbol ORDER BY ts, random()) as k, symbol FROM test_values) as G) as G;
+SELECT INTO result sum((r ).value) FROM (SELECT MADLIB_SCHEMA.unstruct(G.k) as r, symbol FROM (SELECT MADLIB_SCHEMA.augment_series_const(ts, bid, '1 second'::interval, '2011-07-20 15:56:30.4564'::TIMESTAMP) OVER(PARTITION BY symbol ORDER BY ts, random()) as k, symbol FROM test_values) as G) as G;
 IF((result-300265409446.816)^2 > .001) THEN
 	RAISE EXCEPTION 'augment_series_const() - failed';
 END IF;
-SELECT INTO result sum((r).value) FROM (SELECT unstruct(G.k) as r, symbol FROM (SELECT gapfilled_series_avg(ts, bid, '1 second'::interval, '2011-07-20 15:56:30.4564'::TIMESTAMP) OVER(PARTITION BY symbol ORDER BY ts, random()) as k, symbol FROM test_values) as G) as G;
+SELECT INTO result sum((r ).value) FROM (SELECT MADLIB_SCHEMA.unstruct(G.k) as r, symbol FROM (SELECT MADLIB_SCHEMA.gapfilled_series_avg(ts, bid, '1 second'::interval, '2011-07-20 15:56:30.4564'::TIMESTAMP) OVER(PARTITION BY symbol ORDER BY ts, random()) as k, symbol FROM test_values) as G) as G;
 IF((result-274041356329.088)^2 > .001) THEN
 	RAISE EXCEPTION 'gapfilled_series_avg() - failed';
 END IF;
-SELECT INTO result sum((r).value) FROM (SELECT unstruct(G.k) as r, symbol FROM (SELECT gapfilled_series_const(ts, bid, '1 second'::interval, '2011-07-20 15:56:30.4564'::TIMESTAMP) OVER(PARTITION BY symbol ORDER BY ts, random()) as k, symbol FROM test_values) as G) as G;
+SELECT INTO result sum((r ).value) FROM (SELECT MADLIB_SCHEMA.unstruct(G.k) as r, symbol FROM (SELECT MADLIB_SCHEMA.gapfilled_series_const(ts, bid, '1 second'::interval, '2011-07-20 15:56:30.4564'::TIMESTAMP) OVER(PARTITION BY symbol ORDER BY ts, random()) as k, symbol FROM test_values) as G) as G;
 IF((result-274041356329.088)^2 > .001) THEN
 	RAISE EXCEPTION 'gapfilled_series_const() - failed';
 END IF;
 
-SELECT INTO result sum(w) FROM (SELECT weighted_avg(bid) OVER(ORDER BY ts ROWS BETWEEN 3 PRECEDING AND CURRENT ROW) AS w FROM test_values) AS g;
+SELECT INTO result sum(w) FROM (SELECT MADLIB_SCHEMA.weighted_avg(bid) OVER(ORDER BY ts ROWS BETWEEN 3 PRECEDING AND CURRENT ROW) AS w FROM test_values) AS g;
 IF((result-131120266383.24)^2 > .001) THEN
 	RAISE EXCEPTION 'weighted_avg() - failed';
 END IF;
-SELECT INTO result sum(w) FROM (SELECT exponential_avg(bid, .1) OVER(ORDER BY ts ROWS BETWEEN 3 PRECEDING AND CURRENT ROW) AS w FROM test_values) AS g;
-IF((result-131120266383.24)^2 > .001) THEN
-	RAISE EXCEPTION 'weighted_avg() - failed';
-END IF;
-SELECT INTO result sum(w) FROM (SELECT weighted_avg(bid, ARRAY[12312,23222,34342,45565,345354]) OVER(ORDER BY ts ROWS BETWEEN 3 PRECEDING AND CURRENT ROW) AS w FROM test_values) AS g;
+SELECT INTO result sum(w) FROM (SELECT MADLIB_SCHEMA.exponential_avg(bid, .1) OVER(ORDER BY ts ROWS BETWEEN 3 PRECEDING AND CURRENT ROW) AS w FROM test_values) AS g;
 IF((result-131120266199.689)^2 > .001) THEN
+	RAISE EXCEPTION 'exponential_avg() - failed';
+END IF;
+SELECT INTO result sum(w) FROM (SELECT MADLIB_SCHEMA.weighted_avg(bid, ARRAY[12312,23222,34342,45565,345354]) OVER(ORDER BY ts ROWS BETWEEN 3 PRECEDING AND CURRENT ROW) AS w FROM test_values) AS g;
+IF((result-131120266380.708)^2 > .001) THEN
 	RAISE EXCEPTION 'weighted_avg() - failed';
 END IF;
 
-SELECT INTO result sum((k).value) FROM (SELECT time_intercept(bid, id, des) OVER(PARTITION by symbol order by ts range between '10 days'::INTERVAL preceding and current row) as k, symbol from (SELECT ts, bid, id, symbol, TRUE AS des FROM test_values UNION ALL SELECT ts, bid, id, symbol, FALSE AS des FROM test_values1) as g) as g WHERE g.k IS NOT NULL;
+SELECT INTO result sum((k).value) FROM (SELECT MADLIB_SCHEMA.time_intercept(bid, id, des) OVER(PARTITION by symbol order by ts range between '10 days'::INTERVAL preceding and current row) as k, symbol from (SELECT ts, bid, id, symbol, TRUE AS des FROM test_values UNION ALL SELECT ts, bid, id, symbol, FALSE AS des FROM test_values1) as g) as g WHERE g.k IS NOT NULL;
 IF((result-10489620930.8512)^2 > .001) THEN
-	RAISE EXCEPTION 'weighted_avg() - failed';
+	RAISE EXCEPTION 'time_intercept() - failed';
 END IF;
-SELECT INTO result sum((k).value) FROM (SELECT time_intercept(b2, id, b1) OVER(PARTITION by symbol order by ts range between '10 days'::INTERVAL preceding and current row) as k, symbol from (SELECT ts, NULL AS b1, id, symbol, bid AS b2 FROM test_values UNION ALL SELECT ts, bid AS b1, id, symbol, NULL AS b2 FROM test_values1) as g) as g WHERE g.k IS NOT NULL;
+SELECT INTO result sum((k).value) FROM (SELECT MADLIB_SCHEMA.time_intercept(b2, id, b1) OVER(PARTITION by symbol order by ts range between '10 days'::INTERVAL preceding and current row) as k, symbol from (SELECT ts, NULL AS b1, id, symbol, bid AS b2 FROM test_values UNION ALL SELECT ts, bid AS b1, id, symbol, NULL AS b2 FROM test_values1) as g) as g WHERE g.k IS NOT NULL;
 IF((result-7867215690.3384)^2 > .001) THEN
-	RAISE EXCEPTION 'weighted_avg() - failed';
+	RAISE EXCEPTION 'time_intercept() - failed';
 END IF;
 
-SELECT INTO result find_function_oid('performance_window(bytea, INT8)');
+SELECT INTO result MADLIB_SCHEMA.find_function_oid('performance_window(bytea, INT8)');
 
-SELECT INTO result SUM(k) FROM (SELECT EXTRACT(EPOCH from trade_time) as k FROM (SELECT trade_time, performance_extract(g.k::INT4,'10 second'::interval, trade, trade_time, trade_price, trade_quantity, signal) OVER(ORDER BY trade_time DESC) as l FROM test_start, (SELECT find_function_oid('performance_window(bytea, INT8)') as k) as g) as k WHERE l IS NOT NULL ORDER BY trade_time) AS G;
+SELECT INTO result SUM(k) FROM (SELECT EXTRACT(EPOCH from trade_time) as k FROM (SELECT trade_time, MADLIB_SCHEMA.performance_extract(g.k::INT4,'10 second'::interval, trade, trade_time, trade_price, trade_quantity, signal) OVER(ORDER BY trade_time DESC) as l FROM test_start, (SELECT find_function_oid('performance_window(bytea, INT8)') as k) as g) as k WHERE l IS NOT NULL ORDER BY trade_time) AS G;
 IF((result-2622405198)^2 > .001) THEN
-	RAISE EXCEPTION 'weighted_avg() - failed';
+	RAISE EXCEPTION 'performance_extract() - failed';
 END IF;
-SELECT INTO result SUM(k) FROM (SELECT EXTRACT(EPOCH from trade_time) as k  FROM (SELECT trade_time, performance_extract('10 second'::interval, trade, trade_time, trade_price, trade_quantity, signal) OVER(ORDER BY trade_time DESC) as l FROM test_start) as k WHERE l IS NOT NULL ORDER BY trade_time) AS G;
+SELECT INTO result SUM(k) FROM (SELECT EXTRACT(EPOCH from trade_time) as k  FROM (SELECT trade_time, MADLIB_SCHEMA.performance_extract('10 second'::interval, trade, trade_time, trade_price, trade_quantity, signal) OVER(ORDER BY trade_time DESC) as l FROM test_start) as k WHERE l IS NOT NULL ORDER BY trade_time) AS G;
 IF((result-2622405198)^2 > .001) THEN
-	RAISE EXCEPTION 'weighted_avg() - failed';
+	RAISE EXCEPTION 'performance_extract() - failed';
 END IF;
 
-SELECT INTO result sum(g) FROM (SELECT event_detection_delta(bid, 4.8::FLOAT8) OVER(PARTITION BY symbol ORDER BY ts RANGE BETWEEN '5 sec'::INTERVAL PRECEDING AND CURRENT ROW) AS g FROM test_values ORDER BY symbol, ts) AS G;
+SELECT INTO result sum(g) FROM (SELECT MADLIB_SCHEMA.event_detection_delta(bid, 4.8::FLOAT8) OVER(PARTITION BY symbol ORDER BY ts RANGE BETWEEN '5 sec'::INTERVAL PRECEDING AND CURRENT ROW) AS g FROM test_values ORDER BY symbol, ts) AS G;
 IF((result-0)^2 > .001) THEN
-	RAISE EXCEPTION 'weighted_avg() - failed';
+	RAISE EXCEPTION 'event_detection_delta() - failed';
 END IF;
-SELECT INTO result sum((g).event_detection_pearson) FROM (SELECT event_detection_pearson(bid, ARRAY[8,8,8,2]::FLOAT[]) OVER(PARTITION BY symbol ORDER BY ts RANGE BETWEEN '5 sec'::INTERVAL PRECEDING AND CURRENT ROW), symbol, ts FROM test_values ORDER BY symbol, ts) AS G;
+SELECT INTO result sum((g).event_detection_pearson) FROM (SELECT MADLIB_SCHEMA.event_detection_pearson(bid, ARRAY[8,8,8,2]::FLOAT[]) OVER(PARTITION BY symbol ORDER BY ts RANGE BETWEEN '5 sec'::INTERVAL PRECEDING AND CURRENT ROW), symbol, ts FROM test_values ORDER BY symbol, ts) AS G;
 IF((result+18.8519637712958)^2 > .001) THEN
-	RAISE EXCEPTION 'weighted_avg() - failed';
+	RAISE EXCEPTION 'event_detection_pearson() - failed';
 END IF;
-SELECT INTO result sum((g).event_detection_pearson) FROM (SELECT event_detection_pearson(bid, which) OVER(PARTITION BY symbol ORDER BY ts RANGE BETWEEN '5 sec'::INTERVAL PRECEDING AND CURRENT ROW), symbol, ts FROM (SELECT * FROM (SELECT *, TRUE AS which FROM test_values) AS k1 UNION ALL (SELECT *, FALSE AS which FROM test_values1)) as k ORDER BY symbol, ts) AS G;
+SELECT INTO result sum((g).event_detection_pearson) FROM (SELECT MADLIB_SCHEMA.event_detection_pearson(bid, which) OVER(PARTITION BY symbol ORDER BY ts RANGE BETWEEN '5 sec'::INTERVAL PRECEDING AND CURRENT ROW), symbol, ts FROM (SELECT * FROM (SELECT *, TRUE AS which FROM test_values) AS k1 UNION ALL (SELECT *, FALSE AS which FROM test_values1)) as k ORDER BY symbol, ts) AS G;
 IF((result+0.774596586373042)^2 > .001) THEN
-	RAISE EXCEPTION 'weighted_avg() - failed';
+	RAISE EXCEPTION 'event_detection_pearson() - failed';
 END IF;
-SELECT INTO result event_detection_oid(bid, g.a::INT4, NULL) FROM test_values, (SELECT 'madlib.array_sum(ANYARRAY)'::regprocedure::oid as a) g;
+SELECT INTO result sum(G) FROM (SELECT MADLIB_SCHEMA.event_detection_oid(bid, g.a::INT4, NULL) AS G FROM test_values, (SELECT 'madlib.array_sum(ANYARRAY)'::regprocedure::oid as a) g) AS k;
 IF((result-131120266510.64)^2 > .001) THEN
-	RAISE EXCEPTION 'weighted_avg() - failed';
+	RAISE EXCEPTION 'event_detection_oid() - failed';
 END IF;
-
 END
 $$ LANGUAGE plpgsql;
 
-SELECT install_test();
-DROP FUNCTION install_test();
+SELECT MADLIB_SCHEMA.install_test();
+DROP FUNCTION MADLIB_SCHEMA.install_test();
