@@ -273,7 +273,11 @@ Where the boolean is the indicator weather a current row is the source of the va
  
 \endverbatim
 
-In the case above we are using values from the <b>table test_values</b> to generate values for the table <b>test_valeus1</b>. In both calls shown we are interested only in values that are at most 5 minutes old, otherwise values are filled with NULLs. This interval can be set to any value of remain undefined, in which case all the values are acceptable. 
+In the case above we are using values from the <b>table test_values</b> to generate values for the table <b>test_values1</b>. In both calls shown we are interested only in values that are at most 5 minutes old, otherwise values are filled with NULLs. This interval can be set to any value of remain undefined, in which case all the values are acceptable. 
+
+<b>Performance Evaluation</b>
+
+
 
 @sa File time_series.sql_in documenting the SQL functions.
 */
