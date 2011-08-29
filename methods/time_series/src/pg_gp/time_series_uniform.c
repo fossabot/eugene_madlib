@@ -296,7 +296,7 @@ Datum uniform_series_sfunc(PG_FUNCTION_ARGS)
 				result[4]= value2;
 				result[5]= value3;
 				result[6]= array1[6];
-				result[7]= (int64)(result[4]-array1[0])/array1[6];
+				result[7]= (int64)((result[4]-array1[0])/array1[6]);
 				result[8]= (result[4]-result[2]);
 				if(result[7] >= 1){
 					result[0] = array1[0]+array1[6]*result[7];
@@ -368,7 +368,7 @@ Datum uniform_series_start_sfunc(PG_FUNCTION_ARGS)
 		result[4] = value2;
 		result[5] = value3;
 		result[6] = (int64) value4;
-		result[7] = (int64)(result[4]-result[0])/result[6];
+		result[7] = (int64)((result[4]-result[0])/result[6]);
 		result[8] = (result[4]-result[0]);
 		if(result[7] >= 1){
 			result[0] = result[0]+result[6]*result[7];
@@ -780,7 +780,7 @@ Datum gapfilled_series_start_sfunc(PG_FUNCTION_ARGS)
 	float8 *array1 = NULL;
 	int result_size = 9;
 	
-	if(PG_ARGISNULL(1)||PG_ARGISNULL(2)){
+	if(PG_ARGISNULL(1)||PG_ARGISNULL(2)||(PG_GETARG_TIMESTAMP(4) > PG_GETARG_TIMESTAMP(1))){
 			if(nitems1 < 9){
 				result_size = 2;
 				pfree(result);
@@ -791,14 +791,14 @@ Datum gapfilled_series_start_sfunc(PG_FUNCTION_ARGS)
 				memcpy(result,array1,sizeof(float8)*9);
 				result[7] = 0;
 			}
-		}else{
-			 float8 value2 = PG_GETARG_TIMESTAMP(1)/1000000.0;
-	float8 value3 = PG_GETARG_FLOAT8(2);
-	if(nitems1 < 9){
-		result[1] = value3;
-		result[2] = value5;
-		result[3] = value3;
 	}else{
+			float8 value2 = PG_GETARG_TIMESTAMP(1)/1000000.0;
+			float8 value3 = PG_GETARG_FLOAT8(2);
+			if(nitems1 < 9){
+				result[1] = value3;
+				result[2] = value5;
+				result[3] = value3;
+			}else{
 		array1 = (float8*)ARR_DATA_PTR(row_array1);
 		result[1]= array1[5];
 		result[2]= array1[4];
@@ -811,13 +811,13 @@ Datum gapfilled_series_start_sfunc(PG_FUNCTION_ARGS)
 	result[7]= ceil((result[4]-result[2])/result[6]);
 	result[8] = (result[4]-result[2]);
 		}
- 
- 	ArrayType *pgarray;
+	
+		ArrayType *pgarray;
 	pgarray = construct_array((Datum *)result,
 		result_size,FLOAT8OID,
 		sizeof(float8),true,'d');
 	PG_RETURN_ARRAYTYPE_P(pgarray);
- }
+	}
 
 Datum gapfilled_series_prefunc(PG_FUNCTION_ARGS);
 

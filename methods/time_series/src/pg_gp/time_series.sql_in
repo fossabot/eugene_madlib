@@ -14,25 +14,268 @@
 
 @about
 
-This module provide a set of basic time sereis operations primarily used in financial sector. 
+This module provide a set of basic time series operations primarily used in financial sector. It is mainly written as a 
 
-@implementation
+@input
 
--# At present these functions support several numeric types:
-    - SHORTINT
-    - INT
-    - BIGINT
-    - REAL
-    - FLOAT
-As of now they do not support variable size NUMERIC input. 
--# Also several of them may require NO NULL VALUES, while others omit NULLs and 
-return results.
+<b>Normalization Functions</b>
 
-@sa File array_ops.sql_in for list of functions and usage.
-*/
+These function are meant to make it easier to perform tasks on time series data. By time series data we mean data in which each step contains 
+a time paramenter in addition to some numeric value. 
 
-/*
-	Part of series normalization library. The following set of function takes as an input a timesereis data and returns this data normalized.
+First set of functions is time series normalization and augmentation. There are three types of the functions in this categoty:
+<pre>
+	normalilze_series_*
+	augment_series_*	
+	gapfilled_series_*
+</pre>
+
+<b>normalilze_series_*</b> is a set of functions that take irregular time interval series and return normalized time series. There are two distinct types of the function - normalilze_series_avg and 
+<b>normalilze_series_const</b> related to the way new values are generated. <b>_avg</b> computes a linear fit from the closest existing values (ordered by time). While <b>_const</b> uses the latest value that appeared before the constructed one. Arguments of the function are:
+
+<pre><em>normalilze_series_avg</em> (
+    <em>row_time</em> TIMESTAMP,
+    <em>row_value</em> FLOAT8,
+    <em>desired_interval</em> INTERVAL
+)</pre>
+
+Alternative version of the function takes an additional argument:
+
+<pre><em>normalilze_series_avg</em> (
+    <em>row_time</em> TIMESTAMP,
+    <em>row_value</em> FLOAT8,
+    <em>desired_interval</em> INTERVAL,
+    <em>start_time</em> TIMESTAMP
+)</pre>
+
+Interval of time currently supports any value from 1 second and up in increments of 1 second. This argument makes sure that normalized series starts from a certain time value. This can be useful if the next step after normalizing a series if joining it with another series. 
+
+@examp
+\verbatim
+
+=#SELECT * FROM test_values;
+
+           ts            | symbol | id  |       bid       
+-------------------------+--------+-----+-----------------
+2011-07-20 15:56:40.7564 | IBM    | 966 | 1311202600.7564
+2011-07-20 15:56:43.3564 | IBM    | 391 | 1311202603.3564 
+2011-07-20 15:56:45.9564 | IBM    | 840 | 1311202605.9564 
+
+=# SELECT (unstruct(G.k)).* as r, symbol FROM (SELECT normalilze_series_avg(ts, bid, '1 second'::interval) OVER(PARTITION BY symbol ORDER BY ts, random()) as k, symbol FROM test_values) as G;
+
+        time_stamp        |      value      | symbol 
+--------------------------+-----------------+--------
+ 2011-07-20 15:56:41.7564 | 1311202601.7564 | IBM
+ 2011-07-20 15:56:42.7564 | 1311202602.7564 | IBM
+ 2011-07-20 15:56:43.7564 | 1311202603.7564 | IBM
+ 2011-07-20 15:56:44.7564 | 1311202604.7564 | IBM
+ 2011-07-20 15:56:45.7564 | 1311202605.7564 | IBM
+ 
+ =# SELECT (unstruct(G.k)).* as r, symbol FROM (SELECT normalilze_series_avg(ts, bid, '1 second'::interval, '2011-07-20 15:56:40'::TIMESTAMP) OVER(PARTITION BY symbol ORDER BY ts, random());
+ 
+     time_stamp      |   value    | symbol 
+---------------------+------------+--------
+ 2011-07-20 15:56:41 | 1311202601 | IBM
+ 2011-07-20 15:56:42 | 1311202602 | IBM
+ 2011-07-20 15:56:43 | 1311202603 | IBM
+ 2011-07-20 15:56:44 | 1311202604 | IBM
+ 2011-07-20 15:56:45 | 1311202605 | IBM
+ 
+\endverbatim
+
+These options are avaliable with <b>augment_series_</b> and <b>gapfilled_series_</b> as well. 
+
+On more technical note: in many of the function calls you will see <b>ORDER BY something, random()</b>. The technical reason for that is by default aggregate derived window function is based on range, hence it does not call finalization function correctly on the rows for which value of 'something' is the same. The shortest way to avoid this problem is to make each row unique. Alternatively, one may explicitly declare window function to be row based: <b>ORDER BY something ROWS BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW</b>. This will also execute correctly but is a bit longer to type.
+Point number two - all of the functions in this section are followed by <b>UNSTRUCT</b> call. Until upcoming release of Greenplum there is no way to return a set of values from an aggregate or window function. 'Unstruct' takes a set of structures returned by the function call and turns it into a proper set of rows. 
+
+<b>augment_series_</b> is a function that takes as an input a table of irregular data and augment it with regular rows, adding row with values identical to those that are produced by normalilze_series_.
+Hence after execution of this function one can be sure that the target table will contain all the values in the original table as well as values at the specific time intervals. It is called in the manner identical to normalilze_series_. 
+
+The remaining function <b>gapfilled_series_</b>, which is called in the same manner, makes sure that if there is a gap in the original data larger than some specified time interval a value or a set of values will be inserted to guarantee that there is not gap in the series that is returned. 
+
+  
+@examp
+\verbatim
+
+=#SELECT * FROM test_values;
+
+           ts            | symbol | id  |       bid       
+-------------------------+--------+-----+-----------------
+2011-07-20 15:56:40.7564 | IBM    | 966 | 1311202600.7564
+2011-07-20 15:56:43.3564 | IBM    | 391 | 1311202603.3564 
+
+=# SELECT (unstruct(G.k)).* as r, symbol FROM (SELECT gapfilled_series_avg(ts, bid, '.1 second'::interval) OVER(PARTITION BY symbol ORDER BY ts, random()) as k, symbol FROM test_values) as G;
+
+        time_stamp        |      value      | symbol 
+--------------------------+-----------------+--------
+ 2011-07-20 15:56:40.7564 | 1311202600.7564 | IBM
+ 2011-07-20 15:56:41.0564 | 1311202601.0564 | IBM
+ 2011-07-20 15:56:42.0564 | 1311202602.0564 | IBM
+ 2011-07-20 15:56:42.3564 | 1311202602.3564 | IBM
+ 
+ =# SELECT (unstruct(G.k)).* as r, symbol FROM (SELECT gapfilled_series_avg(ts, bid, '1 second'::interval, '2011-07-20 15:56:42'::TIMESTAMP) OVER(PARTITION BY symbol ORDER BY ts, random()) as k, symbol FROM test_values) as G;
+ 
+        time_stamp        |      value      | symbol 
+--------------------------+-----------------+--------
+ 2011-07-20 15:56:42.0564 | 1311202602.0564 | IBM
+ 2011-07-20 15:56:42.3564 | 1311202602.3564 | IBM
+ 2011-07-20 15:56:43.3564 | 1311202603.3564 | IBM
+ 
+  =# SELECT (unstruct(G.k)).* as r, symbol FROM (SELECT augment_series_avg(ts, bid, '.1 second'::interval) OVER(PARTITION BY symbol ORDER BY ts, random()) as k, symbol FROM test_values) as G;
+ 
+\endverbatim
+
+<b>Rolling Average</b>
+
+There are three types of rolling average that are computed:
+
+<pre>
+	weighted_avg
+	exponential_avg
+	weighted_avg - with array 
+</pre>
+
+First tow are computed as described in:
+http://en.wikipedia.org/wiki/Moving_average
+
+The last weighted_avg takes as an input array of weights and uses it to weigh samples in the window. Notice that the array has to be of the same size as the window or larger,
+but cannot be smaller. If values in the array do not add to one, they will be normalized to one before they are applied to the average. 
+
+@examp
+\verbatim
+
+=# SELECT weighted_avg(bid) OVER(ORDER BY ts ROWS BETWEEN 3 PRECEDING AND CURRENT ROW) AS w FROM test_values;
+        w         
+------------------
+  1311202600.7564
+ 1311202601.62307
+ 1311202602.48973
+  1311202603.3564
+  1311202604.6564
+  1311202605.9564
+….
+
+=# SELECT exponential_avg(bid, .1) OVER(ORDER BY ts ROWS BETWEEN 3 PRECEDING AND CURRENT ROW) AS w FROM test_values;
+        w        
+-----------------
+ 1311202600.7564
+ 1311202600.8864
+ 1311202601.1334
+ 1311202601.4857
+ 1311202602.7857
+ 1311202604.0857
+ 1311202605.3857
+ 1311202606.6857
+ 
+ ….
+ 
+ =# SELECT weighted_avg(bid, ARRAY[12312,23222,34342,45565,345354]) OVER(ORDER BY ts ROWS BETWEEN 3 PRECEDING AND CURRENT ROW) AS w FROM test_values;
+        w         
+------------------
+  1311202600.7564
+ 1311202601.60597
+ 1311202602.46625
+ 1311202603.33071
+ 1311202604.63071
+ 1311202605.93071
+ 1311202607.23071
+ 1311202608.53071  
+ ….
+ 
+\endverbatim
+
+<b>Time Intersept Joins</b>
+
+These functions are used to join two timeseries tables where the goal is to obtain the latest preceding value from one table at the time of another. One can view this as a sort of fuzzy join. The first step is to take a union of the two tables. There are to schemas that are supported for that. In the first schema the result of the union is a table which consists of:
+
+VALUE | ID_OF_VALUE | BOOLEAN
+
+Where the boolean is the indicator weather a current row is the source of the value or it is a place to report timestamp and value. 
+@examp
+\verbatim
+
+=# SELECT * FROM test_values ORDER BY ts;
+            ts            | symbol | id  |       bid       
+--------------------------+--------+-----+-----------------
+ 2011-07-20 15:56:40.7564 | IBM    | 966 | 1311202600.7564
+ 2011-07-20 15:56:42.0564 | IBM    | 807 | 1311202602.0564
+ 2011-07-20 15:56:43.3564 | IBM    | 391 | 1311202603.3564
+ 2011-07-20 15:56:44.6564 | IBM    | 400 | 1311202604.6564
+ 2011-07-20 15:56:45.9564 | IBM    | 840 | 1311202605.9564
+ 2011-07-20 15:56:47.2564 | IBM    | 576 | 1311202607.2564
+ 2011-07-20 15:56:48.5564 | IBM    | 579 | 1311202608.5564
+ 2011-07-20 15:56:49.8564 | IBM    | 895 | 1311202609.8564
+ 2011-07-20 15:56:51.1564 | IBM    | 731 | 1311202611.1564
+ 2011-07-20 15:56:52.4564 | IBM    | 972 | 1311202612.4564
+ 2011-07-20 15:56:53.7564 | IBM    | 451 | 1311202613.7564
+ 2011-07-20 15:56:55.0564 | IBM    |  12 | 1311202615.0564
+ 2011-07-20 15:56:56.3564 | IBM    | 448 | 1311202616.3564
+ 2011-07-20 15:56:57.6564 | IBM    |  68 | 1311202617.6564
+ 2011-07-20 15:56:58.9564 | IBM    | 206 | 1311202618.9564
+ 2011-07-20 15:57:00.2564 | IBM    | 129 | 1311202620.2564
+ 2011-07-20 15:57:01.5564 | IBM    | 723 | 1311202621.5564
+ 2011-07-20 15:57:02.8564 | IBM    | 299 | 1311202622.8564
+ 2011-07-20 15:57:04.1564 | IBM    | 446 | 1311202624.1564
+ 2011-07-20 15:57:05.4564 | IBM    | 933 | 1311202625.4564
+ 2011-07-20 15:57:06.7564 | IBM    | 615 | 1311202626.7564
+ 2011-07-20 15:57:08.0564 | IBM    | 649 | 1311202628.0564
+ 2011-07-20 15:57:09.3564 | IBM    | 572 | 1311202629.3564
+ 2011-07-20 15:57:10.6564 | IBM    | 299 | 1311202630.6564
+ 
+ =# SELECT * FROM test_values1 WHERE symbol = 'IBM' ORDER BY ts;
+            ts            | symbol | id  |       bid       
+--------------------------+--------+-----+-----------------
+ 2011-07-20 15:56:41.1564 | IBM    |  51 | 1311202601.1564
+ 2011-07-20 15:56:41.1564 | IBM    | 163 | 1311202601.1564
+ 2011-07-20 15:56:46.2564 | IBM    | 952 | 1311202606.2564
+ 2011-07-20 15:56:46.2564 | IBM    | 160 | 1311202606.2564
+ 2011-07-20 15:56:51.3564 | IBM    | 942 | 1311202611.3564
+ 2011-07-20 15:56:51.3564 | IBM    | 767 | 1311202611.3564
+ 2011-07-20 15:56:56.4564 | IBM    | 365 | 1311202616.4564
+ 2011-07-20 15:56:56.4564 | IBM    | 569 | 1311202616.4564
+ 2011-07-20 15:57:06.6564 | IBM    | 296 | 1311202626.6564
+ 2011-07-20 15:57:06.6564 | IBM    | 417 | 1311202626.6564
+ 2011-07-20 15:57:11.7564 | IBM    | 112 | 1311202631.7564
+ 2011-07-20 15:57:11.7564 | IBM    | 644 | 1311202631.7564
+
+=# SELECT * FROM (SELECT time_intercept(b2, id, b1) OVER(PARTITION by symbol order by ts range between '5 minute'::INTERVAL preceding and current row) as k, symbol, ts from (SELECT ts, NULL AS b1, id, symbol, bid AS b2 FROM test_values UNION ALL SELECT ts, bid AS b1, id, symbol, NULL AS b2 FROM test_values1) as g) as g WHERE g.k IS NOT NULL;
+           k           | symbol |            ts            
+-----------------------+--------+--------------------------
+ (1311202600.7564,966) | IBM    | 2011-07-20 15:56:41.1564
+ (1311202600.7564,966) | IBM    | 2011-07-20 15:56:41.1564
+ (1311202605.9564,840) | IBM    | 2011-07-20 15:56:46.2564
+ (1311202605.9564,840) | IBM    | 2011-07-20 15:56:46.2564
+ (1311202611.1564,731) | IBM    | 2011-07-20 15:56:51.3564
+ (1311202611.1564,731) | IBM    | 2011-07-20 15:56:51.3564
+ (1311202616.3564,448) | IBM    | 2011-07-20 15:56:56.4564
+ (1311202616.3564,448) | IBM    | 2011-07-20 15:56:56.4564
+ (1311202625.4564,933) | IBM    | 2011-07-20 15:57:06.6564
+ (1311202625.4564,933) | IBM    | 2011-07-20 15:57:06.6564
+ (1311202630.6564,299) | IBM    | 2011-07-20 15:57:11.7564
+ (1311202630.6564,299) | IBM    | 2011-07-20 15:57:11.7564
+
+ 
+ =# SELECT * FROM (SELECT time_intercept(b2, id, b1) OVER(PARTITION by symbol order by ts range between '5 minute'::INTERVAL preceding and current row) as k, symbol, ts from (SELECT ts, NULL AS b1, id, symbol, bid AS b2 FROM test_values UNION ALL SELECT ts, bid AS b1, id, symbol, NULL AS b2 FROM test_values1) as g) as g WHERE g.k IS NOT NULL;
+           k           | symbol |            ts            
+-----------------------+--------+--------------------------
+ (1311202600.7564,966) | IBM    | 2011-07-20 15:56:41.1564
+ (1311202600.7564,966) | IBM    | 2011-07-20 15:56:41.1564
+ (1311202605.9564,840) | IBM    | 2011-07-20 15:56:46.2564
+ (1311202605.9564,840) | IBM    | 2011-07-20 15:56:46.2564
+ (1311202611.1564,731) | IBM    | 2011-07-20 15:56:51.3564
+ (1311202611.1564,731) | IBM    | 2011-07-20 15:56:51.3564
+ (1311202616.3564,448) | IBM    | 2011-07-20 15:56:56.4564
+ (1311202616.3564,448) | IBM    | 2011-07-20 15:56:56.4564
+ (1311202625.4564,933) | IBM    | 2011-07-20 15:57:06.6564
+ (1311202625.4564,933) | IBM    | 2011-07-20 15:57:06.6564
+ (1311202630.6564,299) | IBM    | 2011-07-20 15:57:11.7564
+ (1311202630.6564,299) | IBM    | 2011-07-20 15:57:11.7564
+ 
+\endverbatim
+
+In the case above we are using values from the <b>table test_values</b> to generate values for the table <b>test_valeus1</b>. In both calls shown we are interested only in values that are at most 5 minutes old, otherwise values are filled with NULLs. This interval can be set to any value of remain undefined, in which case all the values are acceptable. 
+
+@sa File time_series.sql_in documenting the SQL functions.
 */
 
 CREATE TYPE MADLIB_SCHEMA.series_type AS(
@@ -44,8 +287,6 @@ CREATE TYPE MADLIB_SCHEMA.series_return_type AS(
 	time_stamp TIMESTAMP,
 	value FLOAT8
 );
-
--- just normalize series
 
 CREATE OR REPLACE FUNCTION MADLIB_SCHEMA.unstruct(MADLIB_SCHEMA.series_type) RETURNS SETOF MADLIB_SCHEMA.series_return_type AS
 'MODULE_PATHNAME', 'unstruct_series'
@@ -99,6 +340,15 @@ CREATE FUNCTION MADLIB_SCHEMA.gapfilled_series_const_finalfunc(FLOAT8[]) RETURNS
 AS 'MODULE_PATHNAME', 'gapfilled_series_finalfunc'
 LANGUAGE C IMMUTABLE; 
 
+/**
+ * @brief This functions are meant to either turn unregular time series data into a regular one or augment time series with some derived values
+ *
+ * @param x Timestamp
+ * @param y Float8
+ * @param z Interval
+ * @param s [Optional] Timestamp
+ */
+
 CREATE AGGREGATE MADLIB_SCHEMA.normalilze_series_avg(TIMESTAMP, FLOAT8, INTERVAL) (
        SFUNC = MADLIB_SCHEMA.uniform_series_sfunc,
        PREFUNC = MADLIB_SCHEMA.uniform_series_prefunc,
@@ -131,7 +381,6 @@ CREATE AGGREGATE MADLIB_SCHEMA.normalilze_series_const(TIMESTAMP, FLOAT8, INTERV
        initcond = '{0,0}'
 );
 
--- normalized series + includging original
 CREATE AGGREGATE MADLIB_SCHEMA.augment_series_avg(TIMESTAMP, FLOAT8, INTERVAL) (
        SFUNC = MADLIB_SCHEMA.uniform_series_sfunc,
        PREFUNC = MADLIB_SCHEMA.uniform_series_prefunc,
@@ -164,7 +413,6 @@ CREATE AGGREGATE MADLIB_SCHEMA.augment_series_const(TIMESTAMP, FLOAT8, INTERVAL,
        initcond = '{0,0}'
 );
 
--- original sereis with filled gaps
 
 CREATE AGGREGATE MADLIB_SCHEMA.gapfilled_series_avg(TIMESTAMP, FLOAT8, INTERVAL) (
        SFUNC = MADLIB_SCHEMA.gapfilled_series_sfunc,
@@ -251,6 +499,12 @@ CREATE FUNCTION MADLIB_SCHEMA.weighted_avg_finalfunc(MADLIB_SCHEMA.avg_type_weig
 AS 'MODULE_PATHNAME', 'weighted_avg_finalfunc_full'
 LANGUAGE C IMMUTABLE;
 
+/**
+ * @brief This function compute rolling weighted average on a series
+ *
+ * @param x Float8
+ */
+
 CREATE AGGREGATE MADLIB_SCHEMA.weighted_avg(FLOAT8) (
        SFUNC = array_append,
        PREFUNC = array_cat,
@@ -259,6 +513,13 @@ CREATE AGGREGATE MADLIB_SCHEMA.weighted_avg(FLOAT8) (
        initcond = '{}'
 );
 
+/**
+ * @brief This function compute rolling exponential average on a series
+ *
+ * @param x Float8
+ * @param y Float8
+ */
+
 CREATE AGGREGATE MADLIB_SCHEMA.exponential_avg(FLOAT8, FLOAT8) (
        SFUNC = MADLIB_SCHEMA.exponential_avg_sfunc,
        PREFUNC = MADLIB_SCHEMA.exponential_avg_prefunc,
@@ -266,6 +527,12 @@ CREATE AGGREGATE MADLIB_SCHEMA.exponential_avg(FLOAT8, FLOAT8) (
        STYPE = MADLIB_SCHEMA.avg_type_exp
 );
 
+/**
+ * @brief This function compute rolling weighted by a vector average on a series
+ *
+ * @param x Float8
+ * @param y Float8[]
+ */
 CREATE AGGREGATE MADLIB_SCHEMA.weighted_avg(FLOAT8, FLOAT8[]) (
        SFUNC = MADLIB_SCHEMA.weighted_avg_sfunc,
        PREFUNC = MADLIB_SCHEMA.weighted_avg_prefunc,
