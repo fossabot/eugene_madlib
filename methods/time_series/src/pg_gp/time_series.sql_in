@@ -327,7 +327,7 @@ SELECT * FROM (SELECT trade_time, performance_extract('10 second'::interval, tra
 
 \endverbatim
 
-OID of the function can be found by using <b>find_function_oid</b> function. In this example the input is a union of signal and response table where the first colum indicates what a given row represents. TRUE for response rows (trading/tick data). FALSE for the signal. First example calls and internal evaluation function that is also include in the MADlib. OID of the function need to be checked every time function is redeclared since it is assigned at random. 
+OID of the function can be found by using <b>find_function_oid</b> function. In this example the input is a union of signal and response table where the first column indicates what a given row represents. TRUE for response rows (trading/tick data). FALSE for the signal. First example calls and internal evaluation function that is also include in the MADlib. OID of the function need to be checked every time function is redeclared since it is assigned at random. 
 
 Second example returns structure containing arrays of values for each signals (in this case from the 10 sec following the signal). 
 
@@ -338,9 +338,78 @@ Event detection is a set of function that make a pass over the table and return 
 event_detection_delta
 event_detection_oid
 event_detection_pearson
-event_detection_pearson
 
-Delta function lets a user specify magnitude of change that should register as an event. Only in the cases where this condition is met returned value is 1, 0 otherwise. OID version of the function in addition to all the other parameters takes as the input OID of the function the should be ran on the 
+Delta function lets a user specify magnitude of change that should register as an event. Only in the cases where this condition is met returned value is 1, 0 otherwise. OID version of the function in addition to all the other parameters takes as the input OID of the function the should be ran on the internally for event detection on the specified window of values. 
+
+Additionally there are two types of Pearson correlation functions. One takes as the input numeric column of the table and an array representing some pattern of behavior. This array may be smaller or larger than number of rows in the corresponding window. It will be resized and linearly extrapolated to an array of the same cardinality. Pearson correlation of the two arrays is returned. 
+
+In the second version of the function is meant to find correlations between two time-series tables. One takes a union of the two tables, then those joined values are fed into the Pearson function together with a boolean which indicates wether the current row comes from the one or the other column. Returned result is also a pearson correlation and number of rows in specified time interval need not agree. 
+
+@examp
+\verbatim
+
+=# SELECT madlib.event_detection_delta(bid, 4.8::FLOAT8) OVER(PARTITION BY symbol ORDER BY ts RANGE BETWEEN '5 sec'::INTERVAL PRECEDING AND CURRENT ROW) AS g FROM test_values ORDER BY symbol, ts;
+ g 
+---
+ 0
+ 0
+ 0
+ 0
+ 1
+ 0
+ 0
+ 0
+ ...
+ 
+ =# SELECT madlib.event_detection_pearson(bid, ARRAY[8,8,8,2]::FLOAT[]) OVER(PARTITION BY symbol ORDER BY ts RANGE BETWEEN '5 sec'::INTERVAL PRECEDING AND CURRENT ROW), symbol, ts FROM test_values ORDER BY symbol, ts;
+ event_detection_pearson | symbol |            ts            
+-------------------------+--------+--------------------------
+                         | IBM    | 2011-07-20 15:56:40.7564
+       -0.37796442679702 | IBM    | 2011-07-20 15:56:42.0564
+      -0.250872545194987 | IBM    | 2011-07-20 15:56:43.3564
+       -0.18786728344095 | IBM    | 2011-07-20 15:56:44.6564
+      -0.187867287325544 | IBM    | 2011-07-20 15:56:45.9564
+      -0.187867280738623 | IBM    | 2011-07-20 15:56:47.2564
+      -0.187867271111586 | IBM    | 2011-07-20 15:56:48.5564
+       -0.18786729509473 | IBM    | 2011-07-20 15:56:49.8564
+ ...
+ 
+ SELECT madlib.event_detection_pearson(bid, which) OVER(PARTITION BY symbol ORDER BY ts RANGE BETWEEN '5 sec'::INTERVAL PRECEDING AND CURRENT ROW), symbol, ts FROM (SELECT * FROM (SELECT *, TRUE AS which FROM test_values) AS k1 UNION ALL (SELECT *, FALSE AS which FROM test_values1)) as k ORDER BY symbol, ts;
+ event_detection_pearson | symbol |            ts            
+-------------------------+--------+--------------------------
+                         | IBM    | 2011-07-20 15:56:40.7564
+                         | IBM    | 2011-07-20 15:56:41.1564
+                         | IBM    | 2011-07-20 15:56:41.1564
+                         | IBM    | 2011-07-20 15:56:42.0564
+                         | IBM    | 2011-07-20 15:56:43.3564
+                         | IBM    | 2011-07-20 15:56:44.6564
+                         | IBM    | 2011-07-20 15:56:45.9564
+                         | IBM    | 2011-07-20 15:56:46.2564
+                         | IBM    | 2011-07-20 15:56:46.2564
+                         | IBM    | 2011-07-20 15:56:47.2564
+                         | IBM    | 2011-07-20 15:56:48.5564
+                         | IBM    | 2011-07-20 15:56:49.8564
+                         | IBM    | 2011-07-20 15:56:51.1564
+                         | IBM    | 2011-07-20 15:56:51.3564
+                         | IBM    | 2011-07-20 15:56:51.3564
+                         | IBM    | 2011-07-20 15:56:52.4564
+                         | IBM    | 2011-07-20 15:56:53.7564
+                         | IBM    | 2011-07-20 15:56:55.0564
+                         | IBM    | 2011-07-20 15:56:56.3564
+                         | IBM    | 2011-07-20 15:56:56.4564
+                         | IBM    | 2011-07-20 15:56:56.4564
+                         | IBM    | 2011-07-20 15:56:57.6564
+                         | IBM    | 2011-07-20 15:56:58.9564
+                         | IBM    | 2011-07-20 15:57:00.2564
+      -0.129099459079598 | IBM    | 2011-07-20 15:57:01.5564
+      -0.129099459079598 | IBM    | 2011-07-20 15:57:01.5564
+      -0.129099459079598 | IBM    | 2011-07-20 15:57:01.5564
+      -0.129099319387087 | IBM    | 2011-07-20 15:57:02.8564
+      -0.129099373843486 | IBM    | 2011-07-20 15:57:04.1564
+      -0.129099515903674 | IBM    | 2011-07-20 15:57:05.4564
+                         | IBM    | 2011-07-20 15:57:06.6564
+                         | IBM    | 2011-07-20 15:57:06.6564
+\endverbatim
 
 @sa File time_series.sql_in documenting the SQL functions.
 */
