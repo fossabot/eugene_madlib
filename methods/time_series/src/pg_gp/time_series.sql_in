@@ -277,7 +277,70 @@ In the case above we are using values from the <b>table test_values</b> to gener
 
 <b>Performance Evaluation</b>
 
+The goal of this function is to evaluate response to a stimulus signal. Typical example would be a prediction engine for a trading firm that produces a prediction of the market behavior. One may want to see if stock market behaved in the manner predicted by the signal. This function provides a utility for doing that. One starts by creating a join of signal and response tables. There are two function that can be used for this. First scans through the table and for each signal row it accumulates an array of data that should contain response. Number of rows accumulated depends on time interval that is also provided as an argument to the function. 
 
+Second function takes as the input OID (Object Identifier) of a function that is to be run on the accumulated array following each response function. This mode of execution is faster, but it requires writing a piece of C code that decomposes a binary encoded accumulated data. This function does the processing and returns an array of float values corresponding to the original signal, and a set of quality metrics of the response. It is meant to serve as the input to the regression function. There is a sample function that is provided that can be used as it is or serve as an example for creating a custom one. This function returns an array consisting of:
+
+timestamp of the signal
+initial signal
+binary version if the signal (-1,1)
+min value
+max value
+average value
+return value (final value - start value)
+
+@examp
+\verbatim
+
+=# SELECT * FROM test_start;
+ trade |     trade_time      | trade_price | trade_quantity | signal 
+-------+---------------------+-------------+----------------+--------
+ t     | 2011-07-20 15:56:30 |           9 |            100 |       
+ f     | 2011-07-20 15:56:31 |             |            100 |    1.5
+ t     | 2011-07-20 15:56:33 |          11 |            200 |       
+ t     | 2011-07-20 15:56:34 |          12 |            200 |       
+ t     | 2011-07-20 15:56:36 |          14 |            200 |       
+ t     | 2011-07-20 15:56:37 |          15 |            200 |       
+ t     | 2011-07-20 15:56:38 |          16 |            200 |       
+ t     | 2011-07-20 15:56:44 |          18 |            200 |       
+ t     | 2011-07-20 15:56:32 |          10 |            200 |       
+ t     | 2011-07-20 15:56:35 |          13 |            200 |       
+ t     | 2011-07-20 15:56:39 |          17 |            200 |       
+ f     | 2011-07-20 15:56:45 |             |            100 |   -1.5
+ t     | 2011-07-20 15:56:46 |           3 |            100 |       
+ t     | 2011-07-20 15:56:47 |           2 |            100 |       
+
+
+SELECT * FROM (SELECT trade_time, performance_extract(g.k::INT4,'10 second'::interval, trade, trade_time, trade_price, trade_quantity, signal) OVER(ORDER BY trade_time DESC) as l FROM test_start, (SELECT find_function_oid('performance_window(bytea, INT8)') as k) as g) as k WHERE l IS NOT NULL ORDER BY trade_time;
+
+     trade_time      |                   l                    
+---------------------+----------------------------------------
+ 2011-07-20 15:56:32 | {364492591,1.5,1,1.875e-07,0,7,7,10}
+ 2011-07-20 15:56:46 | {364492605,-1.5,-1,-7.5e-07,-1,0,-1,3}
+ 
+SELECT * FROM (SELECT trade_time, performance_extract('10 second'::interval, trade, trade_time, trade_price, trade_quantity, signal) OVER(ORDER BY trade_time DESC) as l FROM test_start, (SELECT find_function_oid('performance_window(bytea, INT8)') as k) as g) as k WHERE l IS NOT NULL ORDER BY trade_time;
+
+     trade_time      |                                                                                                                                         l                                                                                                                                          
+---------------------+----------------------------------------------------------------------------------------------------------------------------------------------
+ 2011-07-20 15:56:32 | ("{10,10,11,12,13,14,15,16,17}","{f,t,t,t,t,t,t,t,t}","{""2011-07-20 15:56:31"",""2011-07-20 15:56:32"",""2011-07-20 15:56:33"",""2011-07-20 15:56:34"",""2011-07-20 15:56:35"",""2011-07-20 15:56:36"",""2011-07-20 15:56:37"",""2011-07-20 15:56:38"",""2011-07-20 15:56:39""}")
+ 2011-07-20 15:56:46 | ("{3,3,2}","{f,t,t}","{""2011-07-20 15:56:45"",""2011-07-20 15:56:46"",""2011-07-20 15:56:47""}")
+
+\endverbatim
+
+OID of the function can be found by using <b>find_function_oid</b> function. In this example the input is a union of signal and response table where the first colum indicates what a given row represents. TRUE for response rows (trading/tick data). FALSE for the signal. First example calls and internal evaluation function that is also include in the MADlib. OID of the function need to be checked every time function is redeclared since it is assigned at random. 
+
+Second example returns structure containing arrays of values for each signals (in this case from the 10 sec following the signal). 
+
+<b>Event Detection</b>
+
+Event detection is a set of function that make a pass over the table and return an indication for each row weather it fits the event conditions or not. There are the functions:
+
+event_detection_delta
+event_detection_oid
+event_detection_pearson
+event_detection_pearson
+
+Delta function lets a user specify magnitude of change that should register as an event. Only in the cases where this condition is met returned value is 1, 0 otherwise. OID version of the function in addition to all the other parameters takes as the input OID of the function the should be ran on the 
 
 @sa File time_series.sql_in documenting the SQL functions.
 */
