@@ -222,11 +222,16 @@ but cannot be smaller. If values in the array do not add to one, they will be no
 
 <b>Time Intersept Joins</b>
 
-These functions are used to join two timeseries tables where the goal is to obtain the latest preceding value from one table at the time of another. One can view this as a sort of fuzzy join. The first step is to take a union of the two tables. There are to schemas that are supported for that. In the first schema the result of the union is a table which consists of:
+These functions are used to join two time series tables where the goal is to obtain the latest preceding value from one table at the time of another. One can view this as a sort of fuzzy join. The first step is to take a union of the two tables. Then this unified table is being processed. During the scan over the table one would need to keep track of which rows came from the first and which came from the second table. There are two schemas that are supported for that. In the first schema the result of the union is a table which consists of:
 
 VALUE | ID_OF_VALUE | BOOLEAN
 
-Where the boolean is the indicator weather a current row is the source of the value or it is a place to report timestamp and value. 
+Where the boolean is the indicator weather a current row is the source of the value or it is a place to report timestamp and value. The other schema is:
+
+VALUE1 | ID_OF_VALUE1 | VALUE2
+
+Here VALUE1 represents a value from one of the tables, and VALUE2 is another. Hence value is always NULL for one of the two value columns in the table. Value ID is used to link the value in the generated table to the original row from which it was obtained.
+
 @examp
 \verbatim
 
@@ -289,7 +294,6 @@ Where the boolean is the indicator weather a current row is the source of the va
  (1311202625.4564,933) | IBM    | 2011-07-20 15:57:06.6564
  (1311202630.6564,299) | IBM    | 2011-07-20 15:57:11.7564
  (1311202630.6564,299) | IBM    | 2011-07-20 15:57:11.7564
-
  
  =# SELECT * FROM (SELECT time_intercept(b2, id, b1) OVER(PARTITION by symbol order by ts range between '5 minute'::INTERVAL preceding and current row) as k, symbol, ts from (SELECT ts, NULL AS b1, id, symbol, bid AS b2 FROM test_values UNION ALL SELECT ts, bid AS b1, id, symbol, NULL AS b2 FROM test_values1) as g) as g WHERE g.k IS NOT NULL;
            k           | symbol |            ts            
@@ -309,11 +313,11 @@ Where the boolean is the indicator weather a current row is the source of the va
  
 \endverbatim
 
-In the case above we are using values from the <b>table test_values</b> to generate values for the table <b>test_values1</b>. In both calls shown we are interested only in values that are at most 5 minutes old, otherwise values are filled with NULLs. This interval can be set to any value of remain undefined, in which case all the values are acceptable. 
+In the case above we are using values from the <b>table test_values</b> to generate values for times found in the table <b>test_values1</b>. In both calls shown, one is interested only in values that are at most 5 minutes old, otherwise values are filled with NULLs. This interval can be set to any value of remain undefined, in which case all the values are acceptable. 
 
 <b>Performance Evaluation</b>
 
-The goal of this function is to evaluate response to a stimulus signal. Typical example would be a prediction engine for a trading firm that produces a prediction of the market behavior. One may want to see if stock market behaved in the manner predicted by the signal. This function provides a utility for doing that. One starts by creating a join of signal and response tables. There are two function that can be used for this. First scans through the table and for each signal row it accumulates an array of data that should contain response. Number of rows accumulated depends on time interval that is also provided as an argument to the function. 
+The goal of these functions is to evaluate response to a stimulus signal. Typical example would be a prediction engine for a trading firm that produces a prediction of the market behavior. One may want to see if stock market behaved in the manner predicted by the signal. This function provides a utility for doing that. One starts by creating a join of signal and response tables, with one of the columns indicating though boolean value if the current row is a signal of a response row. There are two function that are included be used for this. First one scans through the table and for each signal row it accumulates an array of data that should contain response. Number of rows accumulated depends on time interval that is also provided as an argument to the function. 
 
 Second function takes as the input OID (Object Identifier) of a function that is to be run on the accumulated array following each response function. This mode of execution is faster, but it requires writing a piece of C code that decomposes a binary encoded accumulated data. This function does the processing and returns an array of float values corresponding to the original signal, and a set of quality metrics of the response. It is meant to serve as the input to the regression function. There is a sample function that is provided that can be used as it is or serve as an example for creating a custom one. This function returns an array consisting of:
 
@@ -712,12 +716,6 @@ CREATE AGGREGATE MADLIB_SCHEMA.weighted_avg(FLOAT8, FLOAT8[]) (
        STYPE = MADLIB_SCHEMA.avg_type_weight
 );
 
-/*
-
-	time intercept query
-
-*/
-
 CREATE TYPE MADLIB_SCHEMA.at_time_type AS(
 	value FLOAT8,
 	id BIGINT,
@@ -745,12 +743,28 @@ CREATE FUNCTION MADLIB_SCHEMA.at_time_finalfunc(MADLIB_SCHEMA.at_time_type) RETU
 AS 'MODULE_PATHNAME', 'at_time_finalfunc'
 LANGUAGE C IMMUTABLE;
 
+/**
+ * @brief This function computes a value for each row of table B using time stamped values from table A. 
+ *
+ * @param x value from table A or B
+ * @param y row id from table A or B
+ * @param z indicator if the value is from table A
+ */
+
 CREATE AGGREGATE MADLIB_SCHEMA.time_intercept(FLOAT8, BIGINT, BOOL) (
        SFUNC = MADLIB_SCHEMA.at_time_sfunc,
        PREFUNC = MADLIB_SCHEMA.at_time_prefunc,
        FINALFUNC = MADLIB_SCHEMA.at_time_finalfunc,
        STYPE = MADLIB_SCHEMA.at_time_type
 );
+
+/**
+ * @brief This function computes a value for each row of table B using time stamped values from table A. 
+ *
+ * @param x value from table A (NULL if from B)
+ * @param y row id from table A or B
+ * @param z value from table B (NULL if from A)
+ */
 
 CREATE AGGREGATE MADLIB_SCHEMA.time_intercept(FLOAT8, BIGINT, FLOAT8) (
        SFUNC = MADLIB_SCHEMA.at_time_sfunc,
@@ -759,32 +773,22 @@ CREATE AGGREGATE MADLIB_SCHEMA.time_intercept(FLOAT8, BIGINT, FLOAT8) (
        STYPE = MADLIB_SCHEMA.at_time_type
 );
 
-/*
-	Performance test 
-
-OID of sfunc
-INTERVAL of interest after a special row
-BOOL special
-TIMESTAMP of the current row
-PRICE of the current transaciton
-*/
-
 CREATE TYPE MADLIB_SCHEMA.performance_type AS(
 	value_array FLOAT8[],
 	trade_signal BOOL[],
 	timestamp_array TIMESTAMP[]
 );
 
-/*
-	Sample function to used for the evaluation
-*/
+/**
+ * @brief This is a sample function whose OID can be passed to 'performance_extract' function for the evaluation
+ *
+ * @param x binary state variable
+ * @param y size of a single row object inside binary state
+ */
 
 CREATE OR REPLACE FUNCTION MADLIB_SCHEMA.performance_window(bytea, INT8) RETURNS FLOAT8[] 
 AS 'MODULE_PATHNAME', 'performance_window' LANGUAGE C IMMUTABLE ;
 
-/*
-	Evaluaton window function.
-*/
 
 
 CREATE OR REPLACE FUNCTION MADLIB_SCHEMA.performance_array_window_sfunc(INT8, INTERVAL, BOOL, TIMESTAMP, FLOAT8, INT8, FLOAT8) RETURNS INT8 
@@ -802,12 +806,37 @@ AS 'MODULE_PATHNAME', 'performance_array_window_fast_sfunc' LANGUAGE C IMMUTABLE
 CREATE OR REPLACE FUNCTION MADLIB_SCHEMA.performance_array_window_fast_finalfunc(INT8) RETURNS FLOAT8[] 
 AS 'MODULE_PATHNAME', 'performance_array_window_fast_finalfunc' LANGUAGE C IMMUTABLE ;
 
+
+/**
+ * @brief Performance evaluation function
+ *
+ * @param x time interval to accumulate for evaluation of the response
+ * @param y boolean indicating if this is the response row
+ * @param z timestamp of the row
+ * @param p value1 of the row (e.g stock price)
+ * @param s value2 of the row (e.g quantity traded)
+ * @param t value of signal if signal row (ignored otherwise)
+ */
+
+
 CREATE AGGREGATE MADLIB_SCHEMA.performance_extract(INTERVAL, BOOL, TIMESTAMP, FLOAT8, INT8, FLOAT8) (
        SFUNC = MADLIB_SCHEMA.performance_array_window_sfunc,
        PREFUNC = MADLIB_SCHEMA.performance_array_window_prefunc,
        FINALFUNC = MADLIB_SCHEMA.performance_array_window_finalfunc,
        STYPE = INT8
 );
+
+/**
+ * @brief Performance evaluation function
+ *
+ * @param o OID of the function
+ * @param x time interval to accumulate for evaluation of the response
+ * @param y boolean indicating if this is the response row
+ * @param z timestamp of the row
+ * @param p value1 of the row (e.g stock price)
+ * @param s value2 of the row (e.g quantity traded)
+ * @param t value of signal if signal row (ignored otherwise)
+ */
 
 CREATE AGGREGATE MADLIB_SCHEMA.performance_extract(INT4, INTERVAL, BOOL, TIMESTAMP, FLOAT8, INT8, FLOAT8) (
        SFUNC = MADLIB_SCHEMA.performance_array_window_fast_sfunc,
@@ -816,10 +845,11 @@ CREATE AGGREGATE MADLIB_SCHEMA.performance_extract(INT4, INTERVAL, BOOL, TIMESTA
        STYPE = INT8
 );
 
-/*
-	Determine OID of a function 
-
-*/
+/**
+ * @brief function that returns OID of an existing function
+ *
+ * @param x string representation of the function signature 
+ */
 
 CREATE FUNCTION MADLIB_SCHEMA.find_function_oid(TEXT) RETURNS INT4 AS $$
 DECLARE
@@ -829,10 +859,6 @@ BEGIN
 	RETURN oid_val;
 END
 $$ LANGUAGE plpgsql;
-
-/*
-	Event Detection
-*/
 
 CREATE TYPE MADLIB_SCHEMA.event_detection_type AS(
 	val FLOAT8[],
@@ -907,6 +933,9 @@ BEGIN
 		$1.ref = $3;
 	END IF;
 	$1.val = array_append(COALESCE($1.val, '{}'),$2); 
+	IF(array_upper($1.val,1) > 10000000) THEN
+		RAISE EXCEPTION 'Array being accumulated for Pearson correlation is too large';
+	END IF;
 END
 $$ LANGUAGE plpgsql;
 
@@ -914,6 +943,9 @@ CREATE FUNCTION MADLIB_SCHEMA.event_detection_pearson_prefunc(INOUT MADLIB_SCHEM
 BEGIN
 	$1.ref = COALESCE($1.ref, '{}')||COALESCE($2.ref, '{}');
 	$1.val = COALESCE($1.val, '{}')||COALESCE($2.val, '{}');
+	IF(array_upper($1.val,1) > 10000000) THEN
+		RAISE EXCEPTION 'Array being accumulated for Pearson correlation is too large';
+	END IF;
 END
 $$ LANGUAGE plpgsql;
 
@@ -924,12 +956,22 @@ BEGIN
 	ELSE
 		$1.ref = array_append(COALESCE($1.ref, '{}'),$2);
 	END IF; 
+	IF(array_upper($1.val,1) > 10000000) THEN
+		RAISE EXCEPTION 'Array being accumulated for Pearson correlation is too large';
+	END IF;
 END
 $$ LANGUAGE plpgsql;
 
 CREATE FUNCTION MADLIB_SCHEMA.event_detection_pearson_finalfunc(MADLIB_SCHEMA.event_detection_pearson_type) RETURNS FLOAT8 
 AS 'MODULE_PATHNAME', 'event_detection_pearson_finalfunc'
 LANGUAGE C IMMUTABLE;
+
+/**
+ * @brief Event detection function using numerical change in the values of a column
+ *
+ * @param x value of a row
+ * @param y magnitude change to trigger the event
+ */
 
 CREATE AGGREGATE MADLIB_SCHEMA.event_detection_delta(FLOAT8, FLOAT8) (
        SFUNC = MADLIB_SCHEMA.event_detection_sfunc,
@@ -938,6 +980,13 @@ CREATE AGGREGATE MADLIB_SCHEMA.event_detection_delta(FLOAT8, FLOAT8) (
        STYPE = FLOAT8[]
 );
 
+/**
+ * @brief Event detection function using OID of the event detection function
+ *
+ * @param x value of a row
+ * @param y OID of the event detection function
+ * @param z Input to the function
+ */
 CREATE AGGREGATE MADLIB_SCHEMA.event_detection_oid(FLOAT8, INT4, FLOAT8[]) (
        SFUNC = MADLIB_SCHEMA.event_detection_sfunc,
        PREFUNC = MADLIB_SCHEMA.event_detection_prefunc,
@@ -945,6 +994,12 @@ CREATE AGGREGATE MADLIB_SCHEMA.event_detection_oid(FLOAT8, INT4, FLOAT8[]) (
        STYPE = MADLIB_SCHEMA.event_detection_type
 );
 
+/**
+ * @brief Event detection function using Pearson correlation with a specified vector
+ *
+ * @param x value of a row
+ * @param y array to use in Pearson correlatin
+ */
 CREATE AGGREGATE MADLIB_SCHEMA.event_detection_pearson(FLOAT8, FLOAT8[]) (
        SFUNC = MADLIB_SCHEMA.event_detection_pearson_sfunc,
        PREFUNC = MADLIB_SCHEMA.event_detection_pearson_prefunc,
@@ -952,6 +1007,13 @@ CREATE AGGREGATE MADLIB_SCHEMA.event_detection_pearson(FLOAT8, FLOAT8[]) (
        STYPE = MADLIB_SCHEMA.event_detection_pearson_type
 );
 
+
+/**
+ * @brief Event detection function using values from two tables
+ *
+ * @param x value of a row
+ * @param y indicator if this row is from table A or B
+ */
 CREATE AGGREGATE MADLIB_SCHEMA.event_detection_pearson(FLOAT8, BOOL) (
        SFUNC = MADLIB_SCHEMA.event_detection_comp_sfunc,
        PREFUNC = MADLIB_SCHEMA.event_detection_pearson_prefunc,
