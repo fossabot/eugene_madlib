@@ -20,40 +20,57 @@ This module provide a set of basic time series operations primarily used in fina
 
 <b>Normalization Functions</b>
 
-These function are meant to make it easier to perform tasks on time series data. By time series data we mean data in which each step contains 
-a time paramenter in addition to some numeric value. 
+These functions are meant to make it easier to perform tasks on time series data. By time series data we mean data for which each row contains 
+a time parameter in addition to some numeric value. 
 
-First set of functions is time series normalization and augmentation. There are three types of the functions in this categoty:
+The time series normalization and augmentation consists of these three types of the functions:
 <pre>
 	normalilze_series_*
 	augment_series_*	
 	gapfilled_series_*
 </pre>
 
-<b>normalilze_series_*</b> is a set of functions that take irregular time interval series and return normalized time series. There are two distinct types of the function - normalilze_series_avg and 
-<b>normalilze_series_const</b> related to the way new values are generated. <b>_avg</b> computes a linear fit from the closest existing values (ordered by time). While <b>_const</b> uses the latest value that appeared before the constructed one. Arguments of the function are:
+<b>normalilze_series_*</b> is a set of functions that take irregular time interval series and return normalized time series. Caller can specify a time interval that should return
+a result row. 
+
+\verbatim
+	Input:	
+	5/11/2011 15:01:45 | 5.6
+	5/11/2011 15:01:47 | 8.3
+	5/11/2011 15:01:47 | 7.1
+	5/11/2011 15:01:48 | 3.4
+	
+	Output:
+	5/11/2011 15:01:45 | 5.6
+	5/11/2011 15:01:46 | 5.6
+	5/11/2011 15:01:47 | 7.1
+	5/11/2011 15:01:48 | 3.4
+\endverbatim
+
+The rows with this interval will be generated and output will consist of evenly spaces (in time) rows with the value derived from the existing rows in the input table.
+This value can either represent the last value that appeared in the input, that predated the output row; or would be the result of linear extrapolation between two neighboring rows.
+Depending on the way the value is extrapolated these functions would be <b>normalilze_series_const</b> and <b>normalilze_series_avg</b>. 
 
 <pre><em>normalilze_series_avg</em> (
     <em>row_time</em> TIMESTAMP,
     <em>row_value</em> FLOAT8,
     <em>desired_interval</em> INTERVAL
+     <em>start_time</em> TIMESTAMP (Optional)
 )</pre>
 
-Alternative version of the function takes an additional argument:
+In addition two the necessary parameters caller can optionally include a timestamp as the last argument in the function call. This timestamp will be the starting point for the regularized timeseries
+to be generated from. If no start time is specified the first timestamp that appears in the input will be taken as the start. Option to specify start time is useful if the output of the regularization/normalization is to be correlated with other time series outputs.
 
-<pre><em>normalilze_series_avg</em> (
-    <em>row_time</em> TIMESTAMP,
-    <em>row_value</em> FLOAT8,
-    <em>desired_interval</em> INTERVAL,
-    <em>start_time</em> TIMESTAMP
-)</pre>
+Interval of time currently supports any value from 1 second and up, in increments of 1 second. 
 
-Interval of time currently supports any value from 1 second and up in increments of 1 second. This argument makes sure that normalized series starts from a certain time value. This can be useful if the next step after normalizing a series if joining it with another series. 
+On more technical note: in many of the example function calls you will see <b>ORDER BY something, random()</b>. The technical reason for that is by default aggregate derived window function is based on range, hence it makes a single call to finalization function on each set of rows for which value of 'something' is the same. The shortest way to avoid this behavior is to make each row unique. Alternatively, another way is to explicitly declare window function to be row based: <b>ORDER BY something ROWS BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW</b>. This will also execute correctly but is a bit longer to type.
+
+All of the functions in this sub-section are followed by <b>UNSTRUCT</b> call. Until upcoming (Q4 2011) release of Greenplum there is no way to return a set of values from an aggregate or window function. 'Unstruct' takes a set of structures returned by the function call and turns it into a proper set of rows. Where the return per single row of input can contain 0 or many output rows.
 
 @examp
 \verbatim
 
-=#SELECT * FROM test_values;
+=# SELECT * FROM test_values;
 
            ts            | symbol | id  |       bid       
 -------------------------+--------+-----+-----------------
@@ -83,15 +100,36 @@ Interval of time currently supports any value from 1 second and up in increments
  
 \endverbatim
 
-These options are avaliable with <b>augment_series_</b> and <b>gapfilled_series_</b> as well. 
+<b>augment_series_</b> is a function that takes as an input a table of irregular time series data and augments it with regular rows, adding row with values identical to those that are produced by normalilze_series_. Hence after execution of this function one can be sure that the target table will contain all the values in the original table as well as values at the specific time intervals. It is called in the manner identical to normalilze_series_. That also means that it allows for option for start timestamp and two different way to extrapolate the missing values.
 
-On more technical note: in many of the function calls you will see <b>ORDER BY something, random()</b>. The technical reason for that is by default aggregate derived window function is based on range, hence it does not call finalization function correctly on the rows for which value of 'something' is the same. The shortest way to avoid this problem is to make each row unique. Alternatively, one may explicitly declare window function to be row based: <b>ORDER BY something ROWS BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW</b>. This will also execute correctly but is a bit longer to type.
-Point number two - all of the functions in this section are followed by <b>UNSTRUCT</b> call. Until upcoming release of Greenplum there is no way to return a set of values from an aggregate or window function. 'Unstruct' takes a set of structures returned by the function call and turns it into a proper set of rows. 
+@examp
+\verbatim
 
-<b>augment_series_</b> is a function that takes as an input a table of irregular data and augment it with regular rows, adding row with values identical to those that are produced by normalilze_series_.
-Hence after execution of this function one can be sure that the target table will contain all the values in the original table as well as values at the specific time intervals. It is called in the manner identical to normalilze_series_. 
+  =# SELECT (unstruct(G.k)).* as r, symbol FROM (SELECT augment_series_avg(ts, bid, '1 second'::interval) OVER(PARTITION BY symbol ORDER BY ts, random()) as k, symbol FROM test_values) as G;
+ 
+        time_stamp        |      value      | symbol 
+--------------------------+-----------------+--------
+ 2011-07-20 15:56:40.7564 | 1311202600.7564 | IBM
+ 2011-07-20 15:56:41.7564 | 1311202601.7564 | IBM
+ 2011-07-20 15:56:42.0564 | 1311202602.0564 | IBM
+ 2011-07-20 15:56:42.7564 | 1311202602.7564 | IBM
+ 2011-07-20 15:56:43.3564 | 1311202603.3564 | IBM
+ 2011-07-20 15:56:43.7564 | 1311202603.7564 | IBM
+ 2011-07-20 15:56:44.6564 | 1311202604.6564 | IBM
+ 2011-07-20 15:56:44.7564 | 1311202604.7564 | IBM
+ 2011-07-20 15:56:45.7564 | 1311202605.7564 | IBM
+ 2011-07-20 15:56:45.9564 | 1311202605.9564 | IBM
+ 2011-07-20 15:56:46.7564 | 1311202606.7564 | IBM
+ 2011-07-20 15:56:47.2564 | 1311202607.2564 | IBM
+ 2011-07-20 15:56:47.7564 | 1311202607.7564 | IBM
+ 2011-07-20 15:56:48.5564 | 1311202608.5564 | IBM
+ 2011-07-20 15:56:48.7564 | 1311202608.7564 | IBM
+ 2011-07-20 15:56:49.7564 | 1311202609.7564 | IBM
+ 2011-07-20 15:56:49.8564 | 1311202609.8564 | IBM
+	
+\endverbatim
 
-The remaining function <b>gapfilled_series_</b>, which is called in the same manner, makes sure that if there is a gap in the original data larger than some specified time interval a value or a set of values will be inserted to guarantee that there is not gap in the series that is returned. 
+<b>gapfilled_series_</b> is a function that takes as the input a table of irregular time series data; if in the original data there is a gap in the rows larger than some specified time interval a value or a set of values will be inserted to guarantee that there is no gap in the output. It is called in the manner identical to normalilze_series_. That also means that it allows for option for start timestamp and two different way to extrapolate the missing values.
 
   
 @examp
@@ -121,13 +159,11 @@ The remaining function <b>gapfilled_series_</b>, which is called in the same man
  2011-07-20 15:56:42.3564 | 1311202602.3564 | IBM
  2011-07-20 15:56:43.3564 | 1311202603.3564 | IBM
  
-  =# SELECT (unstruct(G.k)).* as r, symbol FROM (SELECT augment_series_avg(ts, bid, '.1 second'::interval) OVER(PARTITION BY symbol ORDER BY ts, random()) as k, symbol FROM test_values) as G;
- 
 \endverbatim
 
 <b>Rolling Average</b>
 
-There are three types of rolling average that are computed:
+There are three types of rolling average in this implementation of the library:
 
 <pre>
 	weighted_avg
@@ -135,10 +171,10 @@ There are three types of rolling average that are computed:
 	weighted_avg - with array 
 </pre>
 
-First tow are computed as described in:
+First two are computed as described in:
 http://en.wikipedia.org/wiki/Moving_average
 
-The last weighted_avg takes as an input array of weights and uses it to weigh samples in the window. Notice that the array has to be of the same size as the window or larger,
+The last weighted_avg takes as an input array of weights and uses it to weigh samples in the specified window of rows. Notice that the array has to be of the same size as the window or larger,
 but cannot be smaller. If values in the array do not add to one, they will be normalized to one before they are applied to the average. 
 
 @examp
