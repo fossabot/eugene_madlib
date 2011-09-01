@@ -376,10 +376,12 @@ Second example returns structure containing arrays of values for each signals (i
 Event detection is a set of function that make a pass over the table and return an indication for each row weather it fits the event conditions or not. There are the functions:
 
 event_detection_delta
-event_detection_oid
+event_detection_delta_count
 event_detection_pearson
 
-Delta function lets a user specify magnitude of change that should register as an event. Only in the cases where this condition is met returned value is 1, 0 otherwise. OID version of the function in addition to all the other parameters takes as the input OID of the function the should be ran on the internally for event detection on the specified window of values. 
+Delta function lets a user specify magnitude of change within a specified window that should register as an event. This means the absolute value of change, not the signed magnitude. Only in the cases where this condition is met returned value is 1, 0 otherwise. 
+
+Dalta count function does something quite distinct from delta. Delta is testing if the max change in the specified window is greater than the desired delta, in which case 1 is returned, 0 otherwise. Delta_count function only checked the difference between the current and preceding row. But it is much more flexible as far as the conditions. Once can chose to us any primitive numeric operation between the two rows: -, +, /, *, % and so on. Then one can specify the condition with the respect to the 'delta' value: >, <, <=, >=, <>, =. The results is the event count. Then event is registered a count is incremented and returned as the value for each subsequent row until the next event. 
 
 Additionally there are two types of Pearson correlation functions. One takes as the input numeric column of the table and an array representing some pattern of behavior. This array may be smaller or larger than number of rows in the corresponding window. It will be resized and linearly extrapolated to an array of the same cardinality. Pearson correlation of the two arrays is returned. 
 
@@ -400,6 +402,24 @@ In the second version of the function is meant to find correlations between two 
  0
  0
  ...
+ 
+=# SELECT MADLIB.event_detection_delta_count('-', bid,'>',1.1) OVER(PARTITION BY symbol ORDER BY ts ROWS BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW) FROM test_values;
+ event_detection_delta_count 
+-----------------------------
+                            
+                           1
+                           2
+                           3
+                           4
+                           5
+                           6
+                           7
+                           8
+                           9
+                          10
+                          11
+ ...
+                          
  
  =# SELECT madlib.event_detection_pearson(bid, ARRAY[8,8,8,2]::FLOAT[]) OVER(PARTITION BY symbol ORDER BY ts RANGE BETWEEN '5 sec'::INTERVAL PRECEDING AND CURRENT ROW), symbol, ts FROM test_values ORDER BY symbol, ts;
  event_detection_pearson | symbol |            ts            
@@ -866,6 +886,11 @@ CREATE TYPE MADLIB_SCHEMA.event_detection_type AS(
 	input FLOAT8[]
 );
 
+CREATE TYPE MADLIB_SCHEMA.event_detection_count AS(
+	val FLOAT8,
+	counts INT8
+);
+
 CREATE TYPE MADLIB_SCHEMA.event_detection_pearson_type AS(
 	val FLOAT8[],
 	ref FLOAT8[]
@@ -890,6 +915,34 @@ BEGIN
 	 	$1[2] = value;
 	 END IF;
 	 $1[3] = delta;
+END
+$$ LANGUAGE plpgsql;
+
+CREATE FUNCTION MADLIB_SCHEMA.event_detection_sfunc(INOUT MADLIB_SCHEMA.event_detection_count, operation TEXT, value FLOAT8, equality TEXT, delta FLOAT8) RETURNS MADLIB_SCHEMA.event_detection_count AS $$
+DECLARE
+	result BOOL;
+BEGIN
+	 IF($1.val IS NOT NULL) THEN
+		EXECUTE 'SELECT '|| value || ' ' || operation || ' '|| $1.val || ' ' || equality || ' ' || delta || ';' INTO result;
+	 	IF (result) THEN 
+	 		$1.counts = COALESCE($1.counts, 0)+1;
+	 	ELSE
+	 		$1.counts = COALESCE($1.counts, 0);
+	 	END IF;
+	 END IF;
+	 $1.val = value;
+END
+$$ LANGUAGE plpgsql;
+
+CREATE FUNCTION MADLIB_SCHEMA.event_detection_prefunc(INOUT MADLIB_SCHEMA.event_detection_count, MADLIB_SCHEMA.event_detection_count) RETURNS MADLIB_SCHEMA.event_detection_count AS $$
+BEGIN
+	RAISE EXCEPTION 'event_detection_delta_count function has to be called over unbounded preceding rows';
+END
+$$ LANGUAGE plpgsql;
+
+CREATE FUNCTION MADLIB_SCHEMA.event_detection_finalfunc(MADLIB_SCHEMA.event_detection_count) RETURNS INT8 AS $$
+BEGIN
+	RETURN $1.counts;
 END
 $$ LANGUAGE plpgsql;
 
@@ -978,6 +1031,20 @@ CREATE AGGREGATE MADLIB_SCHEMA.event_detection_delta(FLOAT8, FLOAT8) (
        PREFUNC = MADLIB_SCHEMA.event_detection_prefunc,
        FINALFUNC = MADLIB_SCHEMA.event_detection_finalfunc,
        STYPE = FLOAT8[]
+);
+
+/**
+ * @brief Event detection function using numerical change in the values of a column
+ *
+ * @param x value of a row
+ * @param y magnitude change to trigger the event
+ */
+
+CREATE AGGREGATE MADLIB_SCHEMA.event_detection_delta_count(TEXT, FLOAT8, TEXT, FLOAT8) (
+       SFUNC = MADLIB_SCHEMA.event_detection_sfunc,
+       PREFUNC = MADLIB_SCHEMA.event_detection_prefunc,
+       FINALFUNC = MADLIB_SCHEMA.event_detection_finalfunc,
+       STYPE = MADLIB_SCHEMA.event_detection_count
 );
 
 /**

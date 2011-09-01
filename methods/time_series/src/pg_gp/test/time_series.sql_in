@@ -139,6 +139,11 @@ IF((result-2622405198)^2 > .001) THEN
 	RAISE EXCEPTION 'performance_extract() - failed';
 END IF;
 
+SELECT INTO result sum(b) FROM (SELECT MADLIB_SCHEMA.event_detection_delta_count('-', bid,'>',1.1) OVER(PARTITION BY symbol ORDER BY ts ROWS BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW) AS b FROM test_values) AS g;
+IF((result-4950)^2 > .001) THEN
+	RAISE EXCEPTION 'event_detection_delta() - failed';
+END IF;
+
 SELECT INTO result sum(g) FROM (SELECT MADLIB_SCHEMA.event_detection_delta(bid, 4.8::FLOAT8) OVER(PARTITION BY symbol ORDER BY ts RANGE BETWEEN '5 sec'::INTERVAL PRECEDING AND CURRENT ROW) AS g FROM test_values ORDER BY symbol, ts) AS G;
 IF((result-0)^2 > .001) THEN
 	RAISE EXCEPTION 'event_detection_delta() - failed';
