@@ -9,6 +9,7 @@
 #include "utils/builtins.h"
 #include "utils/memutils.h"
 #include "utils/datum.h"
+#include "nodes/execnodes.h"
 #include "utils/lsyscache.h"
 #include "utils/typcache.h"
 #include <math.h>

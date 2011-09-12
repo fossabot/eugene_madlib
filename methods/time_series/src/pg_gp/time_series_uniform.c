@@ -8,6 +8,7 @@
 #include "utils/numeric.h"
 #include "utils/builtins.h"
 #include "utils/memutils.h"
+#include "nodes/execnodes.h"
 #include "utils/datum.h"
 #include "utils/lsyscache.h"
 #include "utils/typcache.h"
