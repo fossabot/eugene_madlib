@@ -12,6 +12,7 @@
 #include "nodes/execnodes.h"
 #include "utils/lsyscache.h"
 #include "utils/typcache.h"
+#include "executor/executor.h"
 #include <math.h>
 
 #include "access/hash.h"
