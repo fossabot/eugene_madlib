@@ -1,3 +1,5 @@
+[![FOSSA Status](https://app.fossa.com/api/projects/git%2Bgithub.com%2Feugenefratkin%2Feugene_madlib.svg?type=shield)](https://app.fossa.com/projects/git%2Bgithub.com%2Feugenefratkin%2Feugene_madlib?ref=badge_shield)
+
 MADlib Read Me
 --------------
 
@@ -18,3 +20,7 @@ doc/user/html/index.html file.
 Changes between MADlib versions are described in the ReleaseNotes.txt file. 
 License information regarding MADlib and included 3rd party libraries can be 
 found inside the license directory.
+
+
+## License
+[![FOSSA Status](https://app.fossa.com/api/projects/git%2Bgithub.com%2Feugenefratkin%2Feugene_madlib.svg?type=large)](https://app.fossa.com/projects/git%2Bgithub.com%2Feugenefratkin%2Feugene_madlib?ref=badge_large)
